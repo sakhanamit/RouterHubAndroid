@@ -2,6 +2,7 @@ package com.routerhub.network
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.os.Build
 import com.routerhub.model.DeviceType
 import com.routerhub.model.NetworkDevice
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,27 @@ import java.util.regex.Pattern
 
 object NetworkScanner {
 
-    private val PORTS_TO_CHECK = intArrayOf(80, 443, 22, 445, 8080, 8008, 9100)
+    private val PORTS_TO_CHECK = intArrayOf(
+        80, 443, 8080, 8443, 22, 23, 445, 139, 8008, 8009, 9100, 631, 554, 5000
+    )
+
+    fun getServiceName(port: Int): String = when (port) {
+        80 -> "HTTP Web"
+        443 -> "HTTPS SSL"
+        8080 -> "HTTP Alt"
+        8443 -> "HTTPS Alt"
+        22 -> "SSH"
+        23 -> "Telnet"
+        445 -> "SMB"
+        139 -> "NetBIOS"
+        8008 -> "Google Cast"
+        8009 -> "Cast SSL"
+        9100 -> "Raw Print"
+        631 -> "IPP Print"
+        554 -> "RTSP Camera"
+        5000 -> "UPnP / NAS"
+        else -> "Port $port"
+    }
 
     fun detectGatewayAndIp(context: Context): Pair<String?, String?> {
         return try {
@@ -173,7 +194,7 @@ object NetworkScanner {
             "EC8EB5" -> "Lenovo PC / Laptop"
 
             // Intel
-            "001788", "0024D7", "BCDE77", "40167E", "4851B7", "680571", "8086F2", "A0C589",
+            "0013E8", "0024D7", "BCDE77", "40167E", "4851B7", "680571", "8086F2", "A0C589",
             "A434D9", "B49691", "E4029B", "EC63D7" -> "Intel PC / Laptop"
 
             // Netgear
@@ -197,6 +218,31 @@ object NetworkScanner {
             "00B00C", "0495E6", "502B73", "C83A35", "E865D4" -> "Tenda Router"
             "3460F9", "7405A5", "D46E0E" -> "Mercusys Router"
 
+            // Cisco & Linksys
+            "000142", "000143", "0001C7", "0001C9", "000164", "000216", "000217", "00024A",
+            "00024B", "0002FD", "0003FD", "00044D", "00049F", "000531", "000573", "00059A",
+            "000628", "000652", "00070E", "000750", "00077D", "000784", "000785", "0007B3" -> "Cisco"
+            "00045A", "000625", "000C41", "000E08", "000E35", "000F66", "001150", "001217",
+            "001310", "0014BF", "0016B6", "001839", "0018F8", "001A70", "001C10", "001D7E" -> "Linksys"
+
+            // Ubiquiti UniFi
+            "00156D", "002722", "0418D6", "18E829", "24A43C", "44D9E7", "60E32B", "68D79A",
+            "70A741", "7483C2", "788A20", "802AA8", "94F7AD", "AC8BA9", "B4FBE4", "DC9FDB" -> "Ubiquiti UniFi"
+
+            // MikroTik
+            "000C42", "2C56DC", "488F5A", "4C5E0C", "64D154", "744D28", "B869F4", "D4CA6D", "E48D8C" -> "MikroTik"
+
+            // Printers (Canon, Brother, Epson)
+            "000085", "001E8F", "180C1A", "70820E", "84BA3B", "A4EE57", "B40C25", "D8492F" -> "Canon Printer"
+            "008077", "001BA9", "30055C", "40B076", "80691A" -> "Brother Printer"
+            "000048", "0021B7", "0026AB", "28C68E", "44D244", "64EB8C", "AC1702", "B46BF9" -> "Epson Printer"
+
+            // Smart Audio, Lighting, Storage
+            "000E58", "08FBAE", "48A6B8", "5C026E", "5C648E", "7828CA", "949F3E", "B8E937" -> "Sonos Audio"
+            "001788", "ECB5FA" -> "Philips Hue"
+            "001132" -> "Synology NAS"
+            "00089B", "245EBE" -> "QNAP NAS"
+
             // Raspberry Pi
             "B827EB", "DCA632", "E45F01", "28CDC1", "D83ADD" -> "Raspberry Pi"
 
@@ -211,6 +257,139 @@ object NetworkScanner {
             isRandomized -> "Smartphone / PC (Private MAC)"
             else -> "Network Client"
         }
+    }
+
+    /**
+     * Extracts structured Brand and Model names from network parameters.
+     */
+    fun extractBrandAndModel(
+        vendor: String?,
+        mac: String?,
+        hostname: String?,
+        httpTitle: String?,
+        openPorts: List<Int>,
+        isGateway: Boolean,
+        isThisDevice: Boolean
+    ): Pair<String, String> {
+        if (isThisDevice) {
+            val b = Build.MANUFACTURER.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+            val m = Build.MODEL
+            return Pair(b, m)
+        }
+
+        val cleanVendor = vendor ?: "Unknown"
+        val lowerHost = (hostname ?: "").lowercase(Locale.ROOT)
+        val lowerTitle = (httpTitle ?: "").lowercase(Locale.ROOT)
+
+        // 1. Determine Brand
+        var detectedBrand = when {
+            cleanVendor.contains("TP-Link", true) -> "TP-Link"
+            cleanVendor.contains("ASUS", true) -> "ASUS"
+            cleanVendor.contains("Netgear", true) -> "Netgear"
+            cleanVendor.contains("D-Link", true) -> "D-Link"
+            cleanVendor.contains("Cisco", true) -> "Cisco"
+            cleanVendor.contains("Linksys", true) -> "Linksys"
+            cleanVendor.contains("Ubiquiti", true) || cleanVendor.contains("UniFi", true) -> "Ubiquiti"
+            cleanVendor.contains("MikroTik", true) -> "MikroTik"
+            cleanVendor.contains("Tenda", true) -> "Tenda"
+            cleanVendor.contains("Mercusys", true) -> "Mercusys"
+            cleanVendor.contains("Apple", true) -> "Apple"
+            cleanVendor.contains("Samsung", true) -> "Samsung"
+            cleanVendor.contains("Xiaomi", true) || cleanVendor.contains("Redmi", true) -> "Xiaomi"
+            cleanVendor.contains("OnePlus", true) -> "OnePlus"
+            cleanVendor.contains("Oppo", true) -> "Oppo"
+            cleanVendor.contains("Realme", true) -> "Realme"
+            cleanVendor.contains("Vivo", true) || cleanVendor.contains("iQOO", true) -> "Vivo"
+            cleanVendor.contains("Huawei", true) || cleanVendor.contains("Honor", true) -> "Huawei"
+            cleanVendor.contains("Google", true) || cleanVendor.contains("Nest", true) -> "Google"
+            cleanVendor.contains("Amazon", true) -> "Amazon"
+            cleanVendor.contains("Sony", true) || cleanVendor.contains("PlayStation", true) -> "Sony"
+            cleanVendor.contains("Microsoft", true) || cleanVendor.contains("Xbox", true) -> "Microsoft"
+            cleanVendor.contains("HP", true) -> "HP"
+            cleanVendor.contains("Canon", true) -> "Canon"
+            cleanVendor.contains("Epson", true) -> "Epson"
+            cleanVendor.contains("Brother", true) -> "Brother"
+            cleanVendor.contains("Dell", true) -> "Dell"
+            cleanVendor.contains("Lenovo", true) -> "Lenovo"
+            cleanVendor.contains("Intel", true) -> "Intel"
+            cleanVendor.contains("Espressif", true) -> "Espressif"
+            cleanVendor.contains("Tuya", true) -> "Tuya"
+            cleanVendor.contains("Philips", true) -> "Philips"
+            cleanVendor.contains("Sonos", true) -> "Sonos"
+            cleanVendor.contains("LG", true) -> "LG"
+            cleanVendor.contains("Synology", true) -> "Synology"
+            cleanVendor.contains("QNAP", true) -> "QNAP"
+            cleanVendor.contains("Raspberry", true) -> "Raspberry Pi"
+            cleanVendor.contains("Roku", true) -> "Roku"
+            else -> null
+        }
+
+        if (detectedBrand == null) {
+            detectedBrand = when {
+                lowerTitle.contains("tp-link") || lowerHost.contains("tplink") -> "TP-Link"
+                lowerTitle.contains("asus") || lowerHost.contains("asus") -> "ASUS"
+                lowerTitle.contains("netgear") || lowerHost.contains("netgear") -> "Netgear"
+                lowerTitle.contains("d-link") || lowerHost.contains("dlink") -> "D-Link"
+                lowerTitle.contains("openwrt") || lowerTitle.contains("luci") -> "OpenWrt"
+                lowerTitle.contains("ubiquiti") || lowerTitle.contains("unifi") -> "Ubiquiti"
+                lowerTitle.contains("mikrotik") || lowerHost.contains("mikrotik") -> "MikroTik"
+                lowerHost.contains("iphone") || lowerHost.contains("ipad") || lowerHost.contains("macbook") || lowerHost.contains("apple") -> "Apple"
+                lowerHost.contains("galaxy") || lowerHost.contains("samsung") -> "Samsung"
+                lowerHost.contains("pixel") -> "Google"
+                isGateway -> "Gateway Router"
+                else -> if (cleanVendor != "Unknown" && !cleanVendor.contains("Private MAC")) cleanVendor else "Network Device"
+            }
+        }
+
+        // 2. Determine Model
+        var detectedModel: String? = null
+
+        // Try extracting model from HTTP title (often holds exact model like Archer C6, RT-AC68U)
+        if (!httpTitle.isNullOrBlank()) {
+            val t = httpTitle.trim()
+            val cleaned = t.replace(Regex("(?i)^(tp-link|asus|netgear|d-link|tenda|mercusys|wireless|router|home|admin|login|portal)\\s*"), "")
+                .replace(Regex("(?i)\\s*(router|management|console|web\\s*interface|portal|login|administration)$"), "")
+                .trim()
+            if (cleaned.length in 2..40) {
+                detectedModel = cleaned
+            } else if (t.length <= 40) {
+                detectedModel = t
+            }
+        }
+
+        // Try extracting model from canonical hostname
+        if (detectedModel.isNullOrBlank() && !hostname.isNullOrBlank()) {
+            val h = hostname.trim()
+            val friendly = h.replace(".local", "").replace(".lan", "").replace(".home", "")
+                .replace("-", " ").replace("_", " ")
+            if (friendly.length in 3..35 && !friendly.all { it.isDigit() || it == '.' }) {
+                detectedModel = friendly.split(" ").filter { it.isNotBlank() }
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+            }
+        }
+
+        // Fallback to role-based model name
+        if (detectedModel.isNullOrBlank()) {
+            detectedModel = when {
+                isGateway -> "Primary Gateway"
+                openPorts.contains(9100) || openPorts.contains(631) -> "$detectedBrand Network Printer"
+                openPorts.contains(554) -> "$detectedBrand IP Camera"
+                openPorts.contains(8008) || openPorts.contains(8009) -> "$detectedBrand Smart TV / Streamer"
+                openPorts.contains(5000) -> "$detectedBrand NAS Storage"
+                openPorts.contains(445) || openPorts.contains(139) -> "$detectedBrand Workstation"
+                detectedBrand == "Espressif" -> "ESP32 / ESP8266 IoT Chip"
+                detectedBrand == "Tuya" -> "Smart Life IoT Device"
+                detectedBrand == "Philips" -> "Hue Smart Lighting Bridge"
+                detectedBrand == "Sonos" -> "Wireless Audio Speaker"
+                detectedBrand == "Roku" -> "Roku Streaming Device"
+                detectedBrand == "Apple" -> "Apple Device"
+                detectedBrand == "Samsung" -> "Samsung Device"
+                openPorts.contains(80) || openPorts.contains(443) || openPorts.contains(8080) -> "$detectedBrand Web Console"
+                else -> "$detectedBrand Device"
+            }
+        }
+
+        return Pair(detectedBrand, detectedModel)
     }
 
     suspend fun scanHost(
@@ -290,15 +469,29 @@ object NetworkScanner {
             hostname = hostname
         )
 
+        val services = openPorts.map { getServiceName(it) }
+        val (brand, model) = extractBrandAndModel(
+            vendor = vendor,
+            mac = mac,
+            hostname = hostname,
+            httpTitle = httpTitle,
+            openPorts = openPorts,
+            isGateway = isGateway,
+            isThisDevice = isThisDevice
+        )
+
         NetworkDevice(
             ip = ip,
             mac = mac,
             hostname = hostname,
             vendor = vendor,
+            brand = brand,
+            model = model,
             deviceType = deviceType,
             isGateway = isGateway,
             isThisDevice = isThisDevice,
             openPorts = openPorts,
+            services = services,
             pingMs = minLatency,
             httpTitle = httpTitle
         )
@@ -327,7 +520,7 @@ object NetworkScanner {
     }
 
     private fun fetchTitleAndBanner(ip: String, port: Int): String? {
-        val scheme = if (port == 443) "https" else "http"
+        val scheme = if (port == 443 || port == 8443) "https" else "http"
         val portSuffix = if (port == 80 || port == 443) "" else ":$port"
         return try {
             val url = URI("$scheme://$ip$portSuffix/").toURL()
@@ -374,13 +567,13 @@ object NetworkScanner {
         }
     }
 
-    private fun classifyDevice(
-        isGateway: Boolean,
-        isThisDevice: Boolean,
-        openPorts: List<Int>,
-        vendor: String,
-        httpTitle: String?,
-        hostname: String?
+    fun classifyDevice(
+        isGateway: Boolean = false,
+        isThisDevice: Boolean = false,
+        openPorts: List<Int> = emptyList(),
+        vendor: String = "Unknown",
+        httpTitle: String? = null,
+        hostname: String? = null
     ): DeviceType {
         if (isGateway) return DeviceType.ROUTER
         if (isThisDevice) return DeviceType.PHONE
@@ -390,19 +583,28 @@ object NetworkScanner {
 
         if (lowerTitle.contains("router") || lowerTitle.contains("luci") || lowerTitle.contains("tp-link") ||
             lowerTitle.contains("d-link") || lowerTitle.contains("netgear") || lowerTitle.contains("asus") ||
-            lowerTitle.contains("tenda") || lowerTitle.contains("mercusys") || lowerTitle.contains("wireless")
+            lowerTitle.contains("tenda") || lowerTitle.contains("mercusys") || lowerTitle.contains("wireless") ||
+            lowerTitle.contains("unifi") || lowerTitle.contains("mikrotik")
         ) {
             return DeviceType.ROUTER
         }
 
-        if (openPorts.contains(9100) || lowerHost.contains("printer") || vendor.contains("Printer")) return DeviceType.PRINTER
-        if (openPorts.contains(8008) || lowerHost.contains("chromecast") || lowerHost.contains("tv") || lowerHost.contains("roku") || vendor.contains("TV")) {
+        if (openPorts.contains(554) || lowerHost.contains("camera") || lowerHost.contains("dvr") || lowerHost.contains("nvr") || lowerTitle.contains("camera")) {
+            return DeviceType.CAMERA
+        }
+        if (openPorts.contains(5000) || vendor.contains("Synology") || vendor.contains("QNAP") || lowerHost.contains("nas") || lowerTitle.contains("nas") || lowerTitle.contains("diskstation")) {
+            return DeviceType.STORAGE
+        }
+        if (openPorts.contains(9100) || openPorts.contains(631) || lowerHost.contains("printer") || vendor.contains("Printer") || vendor.contains("Canon") || vendor.contains("Epson") || vendor.contains("Brother")) {
+            return DeviceType.PRINTER
+        }
+        if (openPorts.contains(8008) || openPorts.contains(8009) || lowerHost.contains("chromecast") || lowerHost.contains("tv") || lowerHost.contains("roku") || vendor.contains("TV") || vendor.contains("Sonos")) {
             return DeviceType.TV
         }
-        if (openPorts.contains(445) || lowerHost.contains("desktop") || lowerHost.contains("laptop") || lowerHost.contains("pc") || vendor.contains("PC") || vendor.contains("Dell") || vendor.contains("Lenovo")) {
+        if (openPorts.contains(445) || openPorts.contains(139) || lowerHost.contains("desktop") || lowerHost.contains("laptop") || lowerHost.contains("pc") || vendor.contains("PC") || vendor.contains("Dell") || vendor.contains("Lenovo") || vendor.contains("Intel")) {
             return DeviceType.COMPUTER
         }
-        if (vendor.contains("Espressif") || vendor.contains("Tuya") || vendor.contains("Smart") || lowerHost.contains("esp") || lowerHost.contains("iot")) {
+        if (vendor.contains("Espressif") || vendor.contains("Tuya") || vendor.contains("Smart") || vendor.contains("Philips") || lowerHost.contains("esp") || lowerHost.contains("iot")) {
             return DeviceType.IOT
         }
         if (vendor.contains("Apple") || vendor.contains("Samsung") || vendor.contains("Huawei") || vendor.contains("Xiaomi") ||
@@ -411,7 +613,7 @@ object NetworkScanner {
         ) {
             return DeviceType.PHONE
         }
-        if (vendor.contains("TP-Link") || vendor.contains("Netgear") || vendor.contains("D-Link") || vendor.contains("ASUS") || vendor.contains("Tenda")) {
+        if (vendor.contains("TP-Link") || vendor.contains("Netgear") || vendor.contains("D-Link") || vendor.contains("ASUS") || vendor.contains("Tenda") || vendor.contains("Cisco") || vendor.contains("Linksys") || vendor.contains("Ubiquiti") || vendor.contains("MikroTik")) {
             return DeviceType.ROUTER
         }
 
@@ -447,11 +649,23 @@ object NetworkScanner {
             for ((ip, device) in results) {
                 scannedCount++
                 val finalDevice = if (device != null) {
-                    if (device.mac == null && updatedArp.containsKey(ip)) {
-                        val mac = updatedArp[ip]
-                        val vendor = lookupVendor(mac)
-                        device.copy(mac = mac, vendor = vendor)
-                    } else device
+                    val resolvedMac = if (device.mac == null && updatedArp.containsKey(ip)) updatedArp[ip] else device.mac
+                    val resolvedVendor = if (resolvedMac != null) lookupVendor(resolvedMac) else device.vendor
+                    val (brand, model) = extractBrandAndModel(
+                        vendor = resolvedVendor,
+                        mac = resolvedMac,
+                        hostname = device.hostname,
+                        httpTitle = device.httpTitle,
+                        openPorts = device.openPorts,
+                        isGateway = device.isGateway,
+                        isThisDevice = device.isThisDevice
+                    )
+                    device.copy(
+                        mac = resolvedMac,
+                        vendor = resolvedVendor,
+                        brand = brand,
+                        model = model
+                    )
                 } else null
 
                 if (finalDevice != null) {
@@ -465,6 +679,124 @@ object NetworkScanner {
         discovered.sortedWith(
             compareByDescending<NetworkDevice> { it.isGateway }
                 .thenByDescending { it.isThisDevice }
+                .thenByDescending { it.deviceType == DeviceType.ROUTER }
+                .thenBy { it.ip.substringAfterLast(".").toIntOrNull() ?: 0 }
+        )
+    }
+
+    /**
+     * Specifically scans and discovers all router candidates on the network.
+     * Probes gateway IP, common router IPs, and local subnet hosts with web/router services.
+     */
+    suspend fun discoverRouters(
+        subnetPrefix: String,
+        gatewayIp: String?,
+        ownIp: String?,
+        onRouterDiscovered: (NetworkDevice) -> Unit
+    ): List<NetworkDevice> = withContext(Dispatchers.IO) {
+        val discoveredList = mutableListOf<NetworkDevice>()
+        val seenIps = mutableSetOf<String>()
+        val initialArp = readArpTable()
+
+        fun checkAndAddRouter(device: NetworkDevice) {
+            val isRouter = device.isGateway ||
+                    device.deviceType == DeviceType.ROUTER ||
+                    device.openPorts.contains(80) ||
+                    device.openPorts.contains(443) ||
+                    device.openPorts.contains(8080) ||
+                    device.openPorts.contains(8443) ||
+                    (device.vendor != null && (
+                        device.vendor.contains("TP-Link", ignoreCase = true) ||
+                        device.vendor.contains("Netgear", ignoreCase = true) ||
+                        device.vendor.contains("ASUS", ignoreCase = true) ||
+                        device.vendor.contains("D-Link", ignoreCase = true) ||
+                        device.vendor.contains("Tenda", ignoreCase = true) ||
+                        device.vendor.contains("Mercusys", ignoreCase = true) ||
+                        device.vendor.contains("Cisco", ignoreCase = true) ||
+                        device.vendor.contains("Linksys", ignoreCase = true) ||
+                        device.vendor.contains("Ubiquiti", ignoreCase = true) ||
+                        device.vendor.contains("MikroTik", ignoreCase = true) ||
+                        device.vendor.contains("Router", ignoreCase = true)
+                    )) ||
+                    (device.httpTitle != null && (
+                        device.httpTitle.contains("router", ignoreCase = true) ||
+                        device.httpTitle.contains("admin", ignoreCase = true) ||
+                        device.httpTitle.contains("luci", ignoreCase = true) ||
+                        device.httpTitle.contains("gateway", ignoreCase = true) ||
+                        device.httpTitle.contains("unifi", ignoreCase = true) ||
+                        device.httpTitle.contains("wireless", ignoreCase = true)
+                    ))
+
+            if (isRouter && seenIps.add(device.ip)) {
+                discoveredList.add(device)
+                onRouterDiscovered(device)
+            }
+        }
+
+        // Priority 1: Check default gateway immediately if available
+        if (gatewayIp != null) {
+            scanHost(gatewayIp, gatewayIp, ownIp, initialArp)?.let { checkAndAddRouter(it) }
+        }
+
+        // Priority 2: Probe most common router host IPs in parallel
+        val priorityIps = listOfNotNull(
+            gatewayIp,
+            "$subnetPrefix.1",
+            "$subnetPrefix.254",
+            "$subnetPrefix.2",
+            "$subnetPrefix.100",
+            "192.168.0.1",
+            "192.168.1.1",
+            "192.168.2.1",
+            "192.168.10.1",
+            "192.168.0.254",
+            "192.168.1.254",
+            "10.0.0.1",
+            "10.0.1.1"
+        ).distinct().filter { !seenIps.contains(it) }
+
+        val priorityJobs = priorityIps.map { ip ->
+            async {
+                scanHost(ip, gatewayIp, ownIp, initialArp)
+            }
+        }
+        priorityJobs.awaitAll().filterNotNull().forEach { checkAndAddRouter(it) }
+
+        // Priority 3: Full subnet sweep in concurrent batches for any secondary APs/routers
+        (1..254).chunked(40).forEach { batch ->
+            val jobs = batch.mapNotNull { hostNum ->
+                val ip = "$subnetPrefix.$hostNum"
+                if (!seenIps.contains(ip)) {
+                    async { scanHost(ip, gatewayIp, ownIp, initialArp) }
+                } else null
+            }
+
+            val results = jobs.awaitAll().filterNotNull()
+            val updatedArp = readArpTable()
+            for (res in results) {
+                val resolvedMac = if (res.mac == null && updatedArp.containsKey(res.ip)) updatedArp[res.ip] else res.mac
+                val resolvedVendor = if (resolvedMac != null) lookupVendor(resolvedMac) else res.vendor
+                val (brand, model) = extractBrandAndModel(
+                    vendor = resolvedVendor,
+                    mac = resolvedMac,
+                    hostname = res.hostname,
+                    httpTitle = res.httpTitle,
+                    openPorts = res.openPorts,
+                    isGateway = res.isGateway,
+                    isThisDevice = res.isThisDevice
+                )
+                val finalDevice = res.copy(
+                    mac = resolvedMac,
+                    vendor = resolvedVendor,
+                    brand = brand,
+                    model = model
+                )
+                checkAndAddRouter(finalDevice)
+            }
+        }
+
+        discoveredList.sortedWith(
+            compareByDescending<NetworkDevice> { it.isGateway }
                 .thenByDescending { it.deviceType == DeviceType.ROUTER }
                 .thenBy { it.ip.substringAfterLast(".").toIntOrNull() ?: 0 }
         )

@@ -7,6 +7,8 @@ enum class DeviceType {
     TV,
     IOT,
     PRINTER,
+    CAMERA,
+    STORAGE,
     UNKNOWN
 }
 
@@ -48,11 +50,13 @@ data class NetworkDevice(
     val mac: String? = null,
     val hostname: String? = null,
     val vendor: String? = null,
+    val brand: String? = null,
+    val model: String? = null,
     val deviceType: DeviceType = DeviceType.UNKNOWN,
     val isGateway: Boolean = false,
     val isThisDevice: Boolean = false,
     val openPorts: List<Int> = emptyList(),
+    val services: List<String> = emptyList(),
     val pingMs: Long? = null,
     val httpTitle: String? = null
 )
-
