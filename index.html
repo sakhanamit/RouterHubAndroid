@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en" class="dark scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RouterHub Android — Modern Network Administrator & Security Companion</title>
+    <meta name="description" content="A modern, privacy-focused Android network companion for router administration, subnet device discovery, and Wi-Fi security auditing. Built with Jetpack Compose & Kotlin.">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        },
+                        accent: {
+                            cyan: '#06b6d4',
+                            emerald: '#10b981',
+                            amber: '#f59e0b',
+                            rose: '#f43f5e'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.2);
+        }
+        .glow-effect {
+            position: relative;
+        }
+        .glow-effect::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, #4f46e5, #06b6d4, #10b981);
+            border-radius: inherit;
+            z-index: -1;
+            filter: blur(15px);
+            opacity: 0.35;
+            transition: opacity 0.3s ease;
+        }
+        .glow-effect:hover::before { opacity: 0.6; }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .animate-pulse-ring { animation: pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-brand-500 selection:text-white flex flex-col justify-between overflow-x-hidden">
+
+    <!-- Background Decorative Elements -->
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div class="absolute -top-40 -left-40 w-96 h-96 bg-brand-600/20 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/3 -right-40 w-96 h-96 bg-accent-cyan/15 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-10 left-1/4 w-80 h-80 bg-accent-emerald/10 rounded-full blur-3xl"></div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <header class="sticky top-0 z-50 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-accent-cyan flex items-center justify-center shadow-lg shadow-brand-500/20">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+                    </svg>
+                </div>
+                <span class="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent tracking-tight">RouterHub</span>
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">v1.0.0</span>
+            </div>
+
+            <nav class="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
+                <a href="#features" class="hover:text-brand-400 transition-colors">Features</a>
+                <a href="#demo" class="hover:text-brand-400 transition-colors">Interactive Demo</a>
+                <a href="#download" class="hover:text-brand-400 transition-colors">Download</a>
+                <a href="#tech" class="hover:text-brand-400 transition-colors">Tech Specs</a>
+                <a href="#privacy" class="hover:text-brand-400 transition-colors">Privacy</a>
+            </nav>
+
+            <div class="flex items-center space-x-4">
+                <a href="https://github.com/sakhanamit/RouterHubAndroid" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-200 text-sm font-medium transition-all">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+                    <span>GitHub</span>
+                </a>
+                <a href="#download" class="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-accent-cyan hover:from-brand-500 hover:to-accent-cyan/90 text-white text-sm font-semibold shadow-md shadow-brand-500/20 transition-all">
+                    Download APK
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="relative z-10 space-y-24 py-12">
+
+        <!-- Hero Section -->
+        <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+
+                <!-- Left Column: Copy -->
+                <div class="lg:col-span-7 space-y-8">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-medium text-slate-300">
+                        <span class="w-2 h-2 rounded-full bg-accent-emerald animate-pulse"></span>
+                        <span>100% On-Device & Privacy First</span>
+                    </div>
+
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
+                        The Pocket <span class="bg-gradient-to-r from-brand-400 via-accent-cyan to-accent-emerald bg-clip-text text-transparent">Network Companion</span> for Android
+                    </h1>
+
+                    <p class="text-lg text-slate-300 leading-relaxed">
+                        Effortlessly discover local Wi-Fi routers, scan full <code class="font-mono text-brand-400 bg-brand-500/10 px-1.5 py-0.5 rounded border border-brand-500/20">/24</code> subnets for connected devices, and audit your home network against security risks with real-time scoring.
+                    </p>
+
+                    <div class="flex flex-wrap gap-4 pt-2">
+                        <a href="https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk" class="px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-accent-cyan hover:from-brand-500 hover:to-accent-cyan text-white font-semibold text-base shadow-xl shadow-brand-500/25 flex items-center space-x-3 transition-all hover:scale-[1.02]">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            <span>Download RouterHub.apk</span>
+                        </a>
+                        <a href="https://github.com/sakhanamit/RouterHubAndroid" target="_blank" rel="noopener noreferrer" class="px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-semibold text-base flex items-center space-x-3 transition-all">
+                            <span>Explore Source Code</span>
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </a>
+                    </div>
+
+                    <!-- Metric Badges -->
+                    <div class="grid grid-cols-3 gap-4 pt-6 border-t border-slate-800/80">
+                        <div>
+                            <div class="text-2xl font-bold text-white font-mono">254 Hosts</div>
+                            <div class="text-xs text-slate-400 mt-1">Full Subnet Sweep</div>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-accent-cyan font-mono">&lt; 3 Seconds</div>
+                            <div class="text-xs text-slate-400 mt-1">High-Speed Scan</div>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-accent-emerald font-mono">AES-256</div>
+                            <div class="text-xs text-slate-400 mt-1">Encrypted Vault</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Interactive Phone Mockup Card -->
+                <div class="lg:col-span-5 relative flex justify-center">
+                    <div class="w-full max-w-sm rounded-3xl glass-card p-6 shadow-2xl relative glow-effect overflow-hidden">
+
+                        <!-- Top Phone Status Header -->
+                        <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4 text-xs font-mono text-slate-400">
+                            <span class="flex items-center space-x-2 text-slate-200 font-medium">
+                                <span class="w-2 h-2 rounded-full bg-accent-emerald animate-pulse"></span>
+                                <span>RouterHub Mobile</span>
+                            </span>
+                            <span>192.168.1.1</span>
+                        </div>
+
+                        <!-- Card 1: Active Gateway -->
+                        <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 space-y-3 mb-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20 flex items-center justify-center">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-semibold text-white">Default Gateway</div>
+                                        <div class="text-xs text-slate-400 font-mono">TP-Link Archer AX55</div>
+                                    </div>
+                                </div>
+                                <span class="text-xs font-semibold text-accent-emerald bg-accent-emerald/10 border border-accent-emerald/20 px-2 py-0.5 rounded-full">Connected</span>
+                            </div>
+                            <div class="text-xs font-mono text-slate-400 flex justify-between bg-slate-950 p-2 rounded-lg">
+                                <span>IP: 192.168.1.1</span>
+                                <span>MAC: 50:C7:BF:81:2F:9D</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: Live Network Scan Summary -->
+                        <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 space-y-3 mb-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Subnet Scan Results</span>
+                                <span class="text-xs text-brand-400 font-mono font-medium">14 Devices Active</span>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center text-xs bg-slate-950 p-2 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-brand-400"></span>
+                                        <span class="font-medium text-slate-200">MacBook Pro M2</span>
+                                    </div>
+                                    <span class="font-mono text-slate-400">192.168.1.102</span>
+                                </div>
+                                <div class="flex justify-between items-center text-xs bg-slate-950 p-2 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan"></span>
+                                        <span class="font-medium text-slate-200">Google Pixel 8</span>
+                                    </div>
+                                    <span class="font-mono text-slate-400">192.168.1.108</span>
+                                </div>
+                                <div class="flex justify-between items-center text-xs bg-slate-950 p-2 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-accent-emerald"></span>
+                                        <span class="font-medium text-slate-200">Samsung Smart TV</span>
+                                    </div>
+                                    <span class="font-mono text-slate-400">192.168.1.120</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 3: Live Security Score -->
+                        <div class="bg-gradient-to-r from-slate-900 to-slate-900/80 rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-slate-400">Security Audit Score</div>
+                                <div class="text-xl font-extrabold text-white">92 / 100 <span class="text-xs font-normal text-accent-emerald ml-1">Grade A</span></div>
+                            </div>
+                            <div class="w-10 h-10 rounded-full bg-accent-emerald/10 border border-accent-emerald/30 text-accent-emerald flex items-center justify-center font-bold text-sm">
+                                🛡️
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Features Matrix Section -->
+        <section id="features" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center space-y-4 mb-16">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-brand-400">Core Capabilities</h2>
+                <p class="text-3xl sm:text-4xl font-extrabold text-white">Engineered for Complete Network Visibility</p>
+                <p class="text-slate-400 max-w-2xl mx-auto">RouterHub packs desktop-grade networking tools into an intuitive, touch-first Android experience.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                <!-- Feature 1 -->
+                <div class="glass-card rounded-2xl p-6 space-y-4 transition-all">
+                    <div class="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white">Multi-Router Management</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        Detect gateways automatically, manage multiple router profiles (home, office, mesh nodes), and quickly access web configuration portals in an embedded WebView.
+                    </p>
+                    <ul class="text-xs space-y-2 text-slate-400 font-mono pt-2">
+                        <li class="flex items-center space-x-2"><span class="text-accent-emerald">✓</span> <span>Encrypted Credentials Store</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-accent-emerald">✓</span> <span>Custom Desktop User-Agent Toggles</span></li>
+                    </ul>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="glass-card rounded-2xl p-6 space-y-4 transition-all">
+                    <div class="w-12 h-12 rounded-xl bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white">Subnet Device Scanner</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        Perform high-speed multi-threaded scans of your entire <code class="font-mono text-accent-cyan">/24</code> subnet to identify every connected host, vendor OUI, and active service.
+                    </p>
+                    <ul class="text-xs space-y-2 text-slate-400 font-mono pt-2">
+                        <li class="flex items-center space-x-2"><span class="text-accent-emerald">✓</span> <span>Kernel ARP Table Inspection</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-accent-emerald">✓</span> <span>Port Banner & HTTP Title Parsing</span></li>
+                    </ul>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="glass-card rounded-2xl p-6 space-y-4 transition-all">
+                    <div class="w-12 h-12 rounded-xl bg-accent-emerald/10 border border-accent-emerald/20 text-accent-emerald flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white">Automated Security Auditor</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        Evaluates router security against unencrypted HTTP interfaces, open risky management ports (Telnet, FTP, SMB), weak default login risks, and WPS/UPnP vulnerabilities.
+                    </p>
+                    <ul class="text-xs space-y-2 text-slate-400 font-mono pt-2">
+                        <li class="flex items-center space-x-2"><span class="text-accent-emerald">✓</span> <span>0–100 Health Rating Scale</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-accent-emerald">✓</span> <span>Actionable Hardening Advice</span></li>
+                    </ul>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Interactive Security Demo Tool -->
+        <section id="demo" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="glass-card rounded-3xl p-8 sm:p-12 border border-slate-800 relative glow-effect overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+
+                    <div class="lg:col-span-6 space-y-6">
+                        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 text-xs font-semibold border border-brand-500/20">
+                            <span>Interactive Security Audit Sandbox</span>
+                        </div>
+                        <h2 class="text-3xl font-extrabold text-white">Try the Security Scanner in Action</h2>
+                        <p class="text-slate-300 text-sm leading-relaxed">
+                            Click below to simulate how RouterHub audits router configurations, probes open ports, and computes security scores in real-time.
+                        </p>
+                        <button id="runAuditBtn" onclick="simulateAudit()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-accent-cyan hover:from-brand-500 hover:to-accent-cyan text-white font-semibold text-sm shadow-lg shadow-brand-500/20 transition-all flex items-center space-x-3">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span>Run Security Audit Simulation</span>
+                        </button>
+                    </div>
+
+                    <!-- Simulator Output Box -->
+                    <div class="lg:col-span-6 bg-slate-950/90 rounded-2xl p-6 border border-slate-800 font-mono text-xs space-y-4">
+                        <div class="flex justify-between items-center pb-3 border-b border-slate-800 text-slate-400">
+                            <span>Target: 192.168.1.1 (Router Gateway)</span>
+                            <span id="auditStatus" class="text-accent-emerald font-bold">READY</span>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                            <div id="auditProgress" class="bg-gradient-to-r from-brand-500 to-accent-cyan h-full w-0 transition-all duration-300"></div>
+                        </div>
+
+                        <!-- Audit Logs List -->
+                        <div id="auditLog" class="space-y-2 h-40 overflow-y-auto pr-2 text-slate-300">
+                            <div class="text-slate-500">// Press "Run Security Audit Simulation" to test security checks</div>
+                        </div>
+
+                        <!-- Final Score Badge -->
+                        <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-sm">
+                            <span class="text-slate-400">Overall Security Score:</span>
+                            <span id="auditScoreText" class="font-bold text-slate-400">-- / 100</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Direct Download Section -->
+        <section id="download" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center space-y-4 mb-12">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-accent-cyan">Downloads & Releases</h2>
+                <p class="text-3xl font-extrabold text-white">Get RouterHub for Android</p>
+                <p class="text-slate-400 max-w-xl mx-auto">Download precompiled APKs directly or build from source using Android Studio.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+
+                <!-- Release APK Card -->
+                <div class="glass-card rounded-2xl p-8 space-y-6 border border-slate-800">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">RouterHub.apk</h3>
+                            <span class="text-xs font-mono text-accent-emerald">Production Release • v1.0.0</span>
+                        </div>
+                        <span class="px-3 py-1 rounded-full bg-accent-emerald/10 text-accent-emerald text-xs font-semibold border border-accent-emerald/20">Recommended</span>
+                    </div>
+
+                    <div class="text-xs font-mono space-y-2 text-slate-400 bg-slate-950 p-3 rounded-xl border border-slate-900">
+                        <div class="flex justify-between"><span>File Size:</span> <span class="text-white">~16.3 MB</span></div>
+                        <div class="flex justify-between"><span>Min Android:</span> <span class="text-white">Android 8.0 (API 26)</span></div>
+                        <div class="flex justify-between"><span>Architecture:</span> <span class="text-white">Universal (arm64, x86_64)</span></div>
+                    </div>
+
+                    <a href="https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-accent-cyan hover:from-brand-500 hover:to-accent-cyan text-white font-semibold text-center block shadow-lg shadow-brand-500/20 transition-all">
+                        Download Release APK
+                    </a>
+                </div>
+
+                <!-- Debug APK Card -->
+                <div class="glass-card rounded-2xl p-8 space-y-6 border border-slate-800">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">RouterHub-debug.apk</h3>
+                            <span class="text-xs font-mono text-slate-400">Standalone Debug Build</span>
+                        </div>
+                        <span class="px-3 py-1 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold">Debug</span>
+                    </div>
+
+                    <div class="text-xs font-mono space-y-2 text-slate-400 bg-slate-950 p-3 rounded-xl border border-slate-900">
+                        <div class="flex justify-between"><span>File Size:</span> <span class="text-white">~16.3 MB</span></div>
+                        <div class="flex justify-between"><span>Logging:</span> <span class="text-white">Verbose Logcat Enabled</span></div>
+                        <div class="flex justify-between"><span>Target:</span> <span class="text-white">Android 14 (API 34)</span></div>
+                    </div>
+
+                    <a href="https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-debug.apk" class="w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-center block border border-slate-700 transition-all">
+                        Download Debug APK
+                    </a>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Tech Stack & Privacy Section -->
+        <section id="tech" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800/80 pt-16">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+
+                <!-- Tech Specs -->
+                <div class="space-y-6">
+                    <h3 class="text-2xl font-bold text-white">Built with Modern Android Tech</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-start space-x-3">
+                            <span class="p-2 rounded-lg bg-brand-500/10 text-brand-400 font-mono text-xs font-bold">KT</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Kotlin & Coroutines</h4>
+                                <p class="text-xs text-slate-400">High-performance asynchronous networking using IO dispatchers and StateFlow pipelines.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-3">
+                            <span class="p-2 rounded-lg bg-accent-cyan/10 text-accent-cyan font-mono text-xs font-bold">UI</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">Jetpack Compose & Material 3</h4>
+                                <p class="text-xs text-slate-400">100% declarative UI with dark/light theme surface hierarchies and smooth interactions.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start space-x-3">
+                            <span class="p-2 rounded-lg bg-accent-emerald/10 text-accent-emerald font-mono text-xs font-bold">SEC</span>
+                            <div>
+                                <h4 class="text-sm font-semibold text-white">EncryptedSharedPreferences</h4>
+                                <p class="text-xs text-slate-400">AES-256 GCM hardware-backed encryption via Android Keystore for router admin passwords.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Privacy Policy Callout -->
+                <div id="privacy" class="glass-card rounded-2xl p-8 space-y-4 border border-slate-800">
+                    <div class="w-10 h-10 rounded-xl bg-accent-emerald/10 border border-accent-emerald/30 text-accent-emerald flex items-center justify-center font-bold">
+                        🔒
+                    </div>
+                    <h3 class="text-xl font-bold text-white">Zero Telemetry & Strict Privacy</h3>
+                    <p class="text-sm text-slate-300 leading-relaxed">
+                        RouterHub is engineered specifically for privacy-conscious users and network engineers. All network discovery, port scans, and credential storage are strictly isolated to your local device hardware.
+                    </p>
+                    <div class="text-xs text-slate-400 space-y-1 font-mono">
+                        <div>• No analytics SDKs or remote logging</div>
+                        <div>• No cloud server dependencies</div>
+                        <div>• Local network permissions used exclusively on-demand</div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-8 relative z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 space-y-4 sm:space-y-0">
+            <div class="flex items-center space-x-2">
+                <span class="font-bold text-slate-200">RouterHub Android</span>
+                <span>• Licensed under MIT</span>
+            </div>
+            <div class="flex items-center space-x-6">
+                <a href="https://github.com/sakhanamit/RouterHubAndroid" target="_blank" rel="noopener noreferrer" class="hover:text-slate-200 transition-colors">GitHub Repository</a>
+                <a href="https://github.com/sakhanamit/RouterHubAndroid/blob/master/RELEASE_NOTES.md" class="hover:text-slate-200 transition-colors">Release Notes</a>
+                <a href="https://github.com/sakhanamit/RouterHubAndroid/blob/master/README.md" class="hover:text-slate-200 transition-colors">Documentation</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Simulator Script -->
+    <script>
+        function simulateAudit() {
+            const btn = document.getElementById('runAuditBtn');
+            const progress = document.getElementById('auditProgress');
+            const log = document.getElementById('auditLog');
+            const scoreText = document.getElementById('auditScoreText');
+            const status = document.getElementById('auditStatus');
+
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            status.textContent = 'SCANNING...';
+            status.className = 'text-brand-400 font-bold animate-pulse';
+            progress.style.width = '0%';
+            log.innerHTML = '';
+            scoreText.textContent = '-- / 100';
+
+            const steps = [
+                { pct: '20%', msg: '🔍 Connecting to Default Gateway 192.168.1.1...', color: 'text-slate-300' },
+                { pct: '40%', msg: '🌐 Testing Web Portal Encryption (HTTP/HTTPS)...', color: 'text-slate-300' },
+                { pct: '60%', msg: '⚠️ Warning: Unencrypted HTTP web admin detected on Port 80', color: 'text-accent-amber' },
+                { pct: '80%', msg: '🛡️ Scanning management ports (SSH 22, Telnet 23, SMB 445)...', color: 'text-slate-300' },
+                { pct: '90%', msg: '✓ Telnet (23) closed. SSH (22) closed.', color: 'text-accent-emerald' },
+                { pct: '100%', msg: '✅ Security Audit Complete! Final Score computed.', color: 'text-accent-cyan font-bold' }
+            ];
+
+            let stepIdx = 0;
+            const interval = setInterval(() => {
+                if (stepIdx < steps.length) {
+                    const step = steps[stepIdx];
+                    progress.style.width = step.pct;
+                    const div = document.createElement('div');
+                    div.className = step.color;
+                    div.textContent = step.msg;
+                    log.appendChild(div);
+                    log.scrollTop = log.scrollHeight;
+                    stepIdx++;
+                } else {
+                    clearInterval(interval);
+                    status.textContent = 'PASSED (85/100)';
+                    status.className = 'text-accent-emerald font-bold';
+                    scoreText.textContent = '85 / 100';
+                    scoreText.className = 'font-bold text-accent-emerald text-base';
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }, 600);
+        }
+    </script>
+
+</body>
+</html>
