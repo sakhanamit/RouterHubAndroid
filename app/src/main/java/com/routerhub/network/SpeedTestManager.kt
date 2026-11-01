@@ -39,27 +39,29 @@ data class SpeedTestResult(
 object SpeedTestManager {
 
     // Single static reusable byte buffer to avoid memory allocations and OutOfMemory crashes
-    private val REUSABLE_BUFFER = ByteArray(16384) { 0x52.toByte() } // 16KB static buffer
+    private val REUSABLE_BUFFER = ByteArray(16384) { 0x52.toByte() }
 
+    // Google CDN & High-Speed measurement endpoints
     private val DOWNLOAD_SERVERS = listOf(
-        "https://speed.cloudflare.com/__down?bytes=5000000",
-        "https://httpbin.org/bytes/2000000"
+        "https://dl.google.com/dl/android/studio/ide-zips/2024.2.1.12/android-studio-2024.2.1.12-windows.exe",
+        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "https://speed.cloudflare.com/__down?bytes=5000000"
     )
 
     private val UPLOAD_SERVERS = listOf(
-        "https://speed.cloudflare.com/__up",
-        "https://httpbin.org/post"
+        "https://www.google.com/generate_204",
+        "https://speed.cloudflare.com/__up"
     )
 
     suspend fun runSpeedTest(
         onUpdate: (SpeedTestResult) -> Unit
     ): SpeedTestResult = withContext(Dispatchers.IO) {
-        var currentResult = SpeedTestResult(phase = SpeedTestPhase.PING, statusText = "Measuring Ping & Latency...")
+        var currentResult = SpeedTestResult(phase = SpeedTestPhase.PING, statusText = "Google Speed Test: Measuring Latency...")
         onUpdate(currentResult)
 
-        // Step 1: Measure Ping & Jitter
+        // Step 1: Measure Ping & Jitter via Google DNS
         val pingTimes = mutableListOf<Long>()
-        val pingHost = "1.1.1.1"
+        val pingHost = "8.8.8.8" // Google Primary DNS
         for (i in 1..4) {
             val startTime = System.currentTimeMillis()
             val reachable = try {
@@ -92,7 +94,7 @@ object SpeedTestManager {
             jitterMs = jitter,
             phase = SpeedTestPhase.DOWNLOAD,
             progress = 0.2f,
-            statusText = "Testing Download Speed..."
+            statusText = "Google Speed Test: Testing Download..."
         )
         onUpdate(currentResult)
 
@@ -110,7 +112,7 @@ object SpeedTestManager {
                     currentDownloadMbps = safeMbps,
                     peakDownloadMbps = peakDownload,
                     progress = 0.2f + (prog * 0.4f),
-                    statusText = String.format(Locale.US, "Download: %.1f Mbps", safeMbps)
+                    statusText = String.format(Locale.US, "Download: %.1f Mbps (Google CDN)", safeMbps)
                 )
                 onUpdate(currentResult)
             }
@@ -124,7 +126,7 @@ object SpeedTestManager {
                     currentDownloadMbps = currentMbps,
                     peakDownloadMbps = peakDownload,
                     progress = 0.2f + (prog * 0.4f),
-                    statusText = String.format(Locale.US, "Download: %.1f Mbps", currentMbps)
+                    statusText = String.format(Locale.US, "Download: %.1f Mbps (Google CDN)", currentMbps)
                 )
                 onUpdate(currentResult)
             }
@@ -134,7 +136,7 @@ object SpeedTestManager {
         currentResult = currentResult.copy(
             phase = SpeedTestPhase.UPLOAD,
             progress = 0.6f,
-            statusText = "Testing Upload Speed..."
+            statusText = "Google Speed Test: Testing Upload..."
         )
         onUpdate(currentResult)
 
@@ -151,7 +153,7 @@ object SpeedTestManager {
                     currentUploadMbps = safeMbps,
                     peakUploadMbps = peakUpload,
                     progress = 0.6f + (prog * 0.4f),
-                    statusText = String.format(Locale.US, "Upload: %.1f Mbps", safeMbps)
+                    statusText = String.format(Locale.US, "Upload: %.1f Mbps (Google CDN)", safeMbps)
                 )
                 onUpdate(currentResult)
             }
@@ -165,7 +167,7 @@ object SpeedTestManager {
                     currentUploadMbps = currentMbps,
                     peakUploadMbps = peakUpload,
                     progress = 0.6f + (prog * 0.4f),
-                    statusText = String.format(Locale.US, "Upload: %.1f Mbps", currentMbps)
+                    statusText = String.format(Locale.US, "Upload: %.1f Mbps (Google CDN)", currentMbps)
                 )
                 onUpdate(currentResult)
             }
@@ -178,7 +180,7 @@ object SpeedTestManager {
             peakDownloadMbps = max(peakDownload, finalDownload),
             currentUploadMbps = finalUpload,
             peakUploadMbps = max(peakUpload, finalUpload),
-            statusText = "Speed Test Complete"
+            statusText = "Google Speed Test Complete"
         )
         onUpdate(currentResult)
         return@withContext currentResult
@@ -271,7 +273,7 @@ object SpeedTestManager {
                         onSpeed(currentMbps, prog.coerceIn(0f, 1f))
                         lastUpdate = now
                     }
-                    delay(10) // Rate limit output stream to prevent socket flooding
+                    delay(10)
                 }
                 outputStream.flush()
                 outputStream.close()
