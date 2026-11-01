@@ -1,99 +1,166 @@
-# RouterHub 🌐
+<div align="center">
 
-> **A modern, privacy-focused Android network companion for router administration, subnet device discovery, and Wi-Fi security auditing.**
+# 🌐 RouterHub Android
 
-[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://www.android.com/)
-[![Min SDK](https://img.shields.io/badge/Min%20SDK-26%20(Android%208.0)-brightgreen)](https://developer.android.com/about/versions/oreo)
-[![Target SDK](https://img.shields.io/badge/Target%20SDK-34%20(Android%2014)-blue)](https://developer.android.com/about/versions/14)
-[![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![UI Toolkit](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Material Design](https://img.shields.io/badge/Design-Material%203-795548)](https://m3.material.io/)
-[![Security](https://img.shields.io/badge/Storage-EncryptedSharedPreferences-red)](https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences)
+### *The Modern, On-Device Network Companion & Security Auditor for Android*
+
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid)
+[![Latest Release](https://img.shields.io/badge/Release-v1.0.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
+[![Platform](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
+[![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![UI Toolkit](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
+
+<br />
+
+[  📥 **Download APK (v1.0.0)**  ](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) &nbsp; | &nbsp; [  📜 **Release Notes**  ](RELEASE_NOTES.md) &nbsp; | &nbsp; [  🐛 **Report Issue**  ](https://github.com/sakhanamit/RouterHubAndroid/issues)
+
+</div>
 
 ---
 
-## 📖 Overview
+## 💡 Overview
 
-**RouterHub** is an all-in-one network management and security auditing tool designed for Android. It eliminates the hassle of remembering local IP addresses, navigating finicky mobile browser interfaces for router setups, and wondering what devices are connected to your Wi-Fi network.
+**RouterHub** is an all-in-one Android network management, device discovery, and Wi-Fi security auditing suite. Built 100% with modern Android standards (**Jetpack Compose**, **Material 3**, and **Kotlin Coroutines**), RouterHub turns your phone into a powerful pocket network administrator.
 
-Whether you are managing multiple routers, tracking smart home (IoT) devices, or verifying whether your home network is exposed to common security vulnerabilities, RouterHub provides a clean, responsive, and secure experience.
+Without relying on any cloud services or remote tracking, RouterHub discovers your active Wi-Fi gateway, maps every connected device on your `/24` subnet, detects open ports and hardware vendor details, and audits your router against critical security vulnerabilities.
 
 ---
 
-## ✨ Features
+## 🗺️ System Architecture
 
-### 🎛️ 1. Multi-Router Management
-- **Auto Gateway Detection**: Detects your active Wi-Fi default gateway IP instantly on connection.
-- **Multi-Router Profiles**: Save and switch between multiple router configurations (home, office, lab, secondary access points).
-- **Embedded Web Console**: Custom-tuned in-app WebView optimized for router administration portals with desktop user-agent switching, HTTP basic authentication handling, and SSL exception bypass options.
-- **Hardware-Backed Credential Security**: Router credentials and passwords are encrypted using Android Keystore and `EncryptedSharedPreferences` (AES-256 GCM).
+```mermaid
+flowchart TD
+    A[Wi-Fi Connection] --> B[Default Gateway & Subnet Detection]
+    B --> C1[Router Management Hub]
+    B --> C2[Subnet Coroutine Scanner]
+    B --> C3[Security Audit Engine]
 
-### 🔍 2. Network Discovery & Subnet Scanner
-- **Fast Subnet Sweep**: Concurrently scans the local `/24` subnet using asynchronous Kotlin Coroutines.
-- **Hardware Identification**: Extracts MAC addresses via the kernel ARP table (`/proc/net/arp`) with vendor OUI matching.
-- **Device Classification**: Automatically classifies detected devices (Routers, Computers, Smartphones, Smart TVs, IoT gadgets, Printers).
-- **Port Scanner & Banner Grabbing**: Identifies common open ports (HTTP, HTTPS, SSH, SMB, alternate web ports) and retrieves HTTP page titles and ping latencies.
+    C1 --> D1[Encrypted Credentials Store\nAES-256 GCM]
+    C1 --> D2[In-App Router Admin Portal\nCustom WebView]
+
+    C2 --> E1[ARP Table Inspector\n/proc/net/arp]
+    C2 --> E2[Multi-Threaded Port Scanner]
+    C2 --> E3[Vendor OUI & HTTP Title Parser]
+
+    C3 --> F1[Weak Credential Check]
+    C3 --> F2[Unencrypted HTTP Port Check]
+    C3 --> F3[Open Risk Services\nTelnet / FTP / SMB]
+    C3 --> F4[WPS / UPnP Exposure Analysis]
+
+    F1 & F2 & F3 & F4 --> G[Security Health Score\n0 - 100]
+```
+
+---
+
+## 🔥 Key Capabilities
+
+| Feature | Description | Tech Highlight |
+| :--- | :--- | :--- |
+| 📡 **Smart Router Discovery** | Detects Wi-Fi default gateway IP and subnet dynamically | Android `ConnectivityManager` |
+| 🔑 **Encrypted Vault** | Store router login credentials safely on-device | `EncryptedSharedPreferences` (AES-256 GCM) |
+| 🔍 **Subnet Device Scanner** | Scans all 254 local IP addresses concurrently | High-concurrency Kotlin Coroutines |
+| 🏷️ **Hardware Identification** | Resolves MAC addresses, Vendor OUI, Brand, and Model | Kernel ARP inspection (`/proc/net/arp`) |
+| 🛡️ **Security Audit Engine** | Computes a 0–100 Security Score with severity ratings | Multi-point vulnerability heuristic scanner |
+| 🎨 **Material 3 UI** | Modern, dark-mode native Jetpack Compose interface | 100% Declarative UI with Material You |
+
+---
+
+## 🚀 Key Modules & Screenshots
+
+### 🎛️ 1. Multi-Router Administration
+* **Gateway Auto-Discovery:** Instant identification of gateway IP upon connecting to Wi-Fi.
+* **Profile Management:** Store profiles for home, office, and secondary access points.
+* **Embedded Admin Portal:** Integrated WebView with custom user-agent toggles, HTTP Basic Auth support, and SSL exception bypass for local router dashboards.
+* **On-Device Encryption:** All credentials protected via Android Keystore.
+
+### 🔍 2. High-Speed Subnet & Port Scanner
+* **Concurrent Subnet Sweep:** Asynchronously checks `/24` subnets (up to 254 host IPs).
+* **Device Categorization:** Auto-classifies host devices as *Routers, Smartphones, Computers, Smart TVs, IoT, Printers, Cameras, or Network Storage*.
+* **Diagnostic Metrics:** Ping latency response times (`pingMs`), open ports (HTTP, HTTPS, SSH, FTP, Telnet, SMB), and web page banner titles.
+* **Instant Clipboard Copy:** One-tap copying for IP and MAC addresses.
 
 ### 🛡️ 3. Automated Wi-Fi Security Audit
-- **Security Scorecard**: Computes an aggregate network security score (0–100) based on vulnerability severity.
-- **Cleartext Traffic Detection**: Flags unencrypted HTTP router administration portals exposing session cookies and passwords.
-- **Insecure Protocol Checks**: Scans for vulnerable legacy services such as Telnet (Port 23) and SMB file sharing (Port 445).
-- **Default Credential Risk Analysis**: Identifies devices still relying on default factory administrative credentials.
-- **Actionable Remediation**: Offers step-by-step guidance to patch and harden router configurations.
+* **Security Scorecard:** Generates a real-time 0–100 security rating.
+* **Risk Categorization:** Evaluates issues across `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, and `INFO` levels.
+* **Audited Vulnerabilities:**
+  * Unencrypted HTTP web interfaces exposing session credentials.
+  * Open high-risk legacy ports (Telnet, FTP, SMB file sharing).
+  * Default factory credential vulnerability risks.
+  * UPnP and WPS exposure warnings.
+* **Actionable Remediation:** Step-by-step guidance on hardening your router configuration.
 
-### 🎨 4. Modern, Responsive Experience
-- Built 100% with **Jetpack Compose** and **Material 3**.
-- Fluid dark and light mode adaptation with an iOS-inspired clean surface hierarchy.
-- Badge-driven navigation indicating live router counts, online devices, and active security vulnerabilities.
+---
+
+## 📥 Installation
+
+### Option A: Direct APK Download
+You can download and install the latest compiled APK directly from the repository:
+
+| File | Type | Description | Link |
+| :--- | :--- | :--- | :--- |
+| `RouterHub.apk` | Release Build | Optimised production APK | [**Download APK**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) |
+| `RouterHub-debug.apk` | Debug Build | Standalone debug build with logging | [**Download Debug APK**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-debug.apk) |
+
+> **Note:** Ensure *"Install from Unknown Sources"* is enabled in your Android device settings.
+
+---
+
+### Option B: Build from Source
+
+#### Prerequisites
+* **Android Studio:** Ladybug (2024.2.1+) or standard modern release
+* **JDK:** Java 17+
+* **Android SDK:** API 34+ (Target SDK 34 / Min SDK 26)
+
+#### Steps
+```bash
+# 1. Clone the repository
+git clone https://github.com/sakhanamit/RouterHubAndroid.git
+
+# 2. Navigate to the project directory
+cd RouterHubAndroid
+
+# 3. Build debug APK using Gradle
+./gradlew assembleDebug
+```
+
+The output APK will be located at `app/build/outputs/apk/debug/app-debug.apk`.
+
+---
+
+## 🔒 Security & Privacy First
+
+RouterHub is built on a **Strict Zero-Telemetry Privacy Policy**:
+* 🚫 **No External Analytics:** Zero tracking scripts, telemetry, or analytics SDKs.
+* 🔒 **100% On-Device Processing:** All subnet scans, ARP resolution, and security checks execute locally on your hardware.
+* 🔑 **Hardware-Backed Encryption:** Credentials are stored securely using Android Keystore and `EncryptedSharedPreferences`.
+
+### Declared Android Permissions
+| Permission | Purpose |
+| :--- | :--- |
+| `INTERNET` | Execute local socket connections and subnet ping checks |
+| `ACCESS_NETWORK_STATE` | Read Wi-Fi connection parameters, gateway IP, and subnet masks |
+| `ACCESS_WIFI_STATE` | Verify active Wi-Fi status before initiating scans |
 
 ---
 
 ## 🛠️ Tech Stack & Architecture
 
-- **Language**: [Kotlin](https://kotlinlang.org/) (Coroutines + Flow)
-- **UI Framework**: [Jetpack Compose](https://developer.android.com/jetpack/compose) + [Material 3](https://m3.material.io/)
-- **Architecture**: Modern Android Component Architecture
-- **Security**: [AndroidX Security Crypto](https://developer.android.com/reference/androidx/security/crypto/EncryptedSharedPreferences) (AES-256 GCM + Android Keystore)
-- **Networking**: Java NIO Sockets, Android `ConnectivityManager`, ARP inspection (`/proc/net/arp`)
-- **Compatibility**: Minimum SDK 26 (Android 8.0) | Target SDK 34 (Android 14)
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Android Studio Hedgehog (2023.1.1) or newer
-- JDK 17
-- Android SDK 34
-
-### Building from Source
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/RouterHubAndroid.git
-   cd RouterHubAndroid
-   ```
-
-2. Open the project in **Android Studio**.
-
-3. Sync Gradle and build the project:
-   ```bash
-   ./gradlew assembleDebug
-   ```
-
-4. Run on a connected device or emulator with Wi-Fi network access.
-
----
-
-## 🔒 Permissions & Privacy
-
-RouterHub is built with privacy in mind. All scans, data collection, and credential storage remain strictly **on-device**—no analytics, tracking, or cloud uploads:
-- `android.permission.INTERNET`: Required to communicate with your router and perform local subnet discovery.
-- `android.permission.ACCESS_NETWORK_STATE`: Required to read active network properties, subnet masks, and default gateway routes.
-- `android.permission.ACCESS_WIFI_STATE`: Required to detect Wi-Fi connection states.
+* **Language:** [Kotlin](https://kotlinlang.org/)
+* **UI Framework:** [Jetpack Compose](https://developer.android.com/jetpack/compose) + [Material 3](https://m3.material.io/)
+* **Asynchronous Processing:** Kotlin Coroutines (`Dispatchers.IO`) & `StateFlow`
+* **Security & Storage:** `androidx.security:security-crypto`
+* **Network Inspection:** Java Socket NIO, ARP table inspection (`/proc/net/arp`), HTTP banner grabbing
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE) (or your preferred open source license).
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for privacy-conscious Android network administrators.</sub>
+</div>
