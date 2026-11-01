@@ -5,16 +5,23 @@
 ### *The Ultimate Modern Network Administrator & Security Companion for Android*
 
 [![Live Webpage](https://img.shields.io/badge/🌐_Website-Live_Landing_Page-6366f1?style=for-the-badge)](https://sakhanamit.github.io/RouterHubAndroid/)
+[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.0.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid)
 [![Latest Release](https://img.shields.io/badge/Release-v1.0.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
 [![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![UI Toolkit](https://img.shields.io/badge/UI-Jetpack_Compose-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
 <br/>
 
-[ 🌐 **Visit Live Webpage** ](https://sakhanamit.github.io/RouterHubAndroid/) &nbsp;•&nbsp; [ 📥 **Download Release APK (v1.0.0)** ](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) &nbsp;•&nbsp; [ 📜 **Release Notes** ](RELEASE_NOTES.md)
+### 🚀 **Quick Download Links**
+
+| Package | Direct Download Link | Description | Size |
+| :--- | :--- | :--- | :---: |
+| 🟢 **Release APK** | [**📥 Download RouterHub.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) | Optimized Production Build | ~16.3 MB |
+| 🔵 **Debug APK** | [**📥 Download RouterHub-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-debug.apk) | Standalone Debug Build | ~16.3 MB |
+| 🌐 **Live Webpage** | [**Visit Webpage**](https://sakhanamit.github.io/RouterHubAndroid/) | Interactive Demo & Documentation | -- |
+| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.0.0 Changelog | -- |
 
 </div>
 
@@ -25,6 +32,16 @@
 **RouterHub** is a high-performance, privacy-focused Android application designed to put professional network administration, router management, device discovery, and security auditing into your pocket.
 
 Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Material 3**, and **Hardware Encryption**, RouterHub eliminates the friction of discovering local IP addresses, accessing router dashboards, identifying connected Wi-Fi hosts, and auditing home networks for security vulnerabilities.
+
+---
+
+## 📥 Direct Download & Installation Guide
+
+### Option 1: Direct APK Download
+1. Click [**Download RouterHub.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) to get the latest APK.
+2. Transfer or open the file on your Android device (Android 8.0+ / API 26+).
+3. Enable **"Install from Unknown Sources"** if prompted by Android.
+4. Tap install and launch **RouterHub**!
 
 ---
 
@@ -115,15 +132,6 @@ flowchart TD
   * UPnP and WPS security exposure.
 * **Step-by-Step Remediation:** Clear hardening recommendations for every flagged issue.
 </details>
-
----
-
-## 📦 Direct Downloads
-
-| Artifact | Build Type | Description | Link |
-| :--- | :--- | :--- | :--- |
-| `RouterHub.apk` | **Release** | Production release APK | [**📥 Download Release APK**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) |
-| `RouterHub-debug.apk` | **Debug** | Standalone debug build | [**📥 Download Debug APK**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-debug.apk) |
 
 ---
 
