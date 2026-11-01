@@ -5,23 +5,23 @@
 ### *The Ultimate Modern Network Administrator & Security Companion for Android*
 
 [![Live Webpage](https://img.shields.io/badge/🌐_Website-Live_Landing_Page-6366f1?style=for-the-badge)](https://sakhanamit.github.io/RouterHubAndroid/)
-[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.0.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk)
+[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.1.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-release.apk)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid)
-[![Latest Release](https://img.shields.io/badge/Release-v1.0.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v1.1.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
 [![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
 <br/>
 
-### 🚀 **Quick Download Links**
+### 🚀 **Quick Download Links (v1.1.0)**
 
 | Package | Direct Download Link | Description | Size |
 | :--- | :--- | :--- | :---: |
-| 🟢 **Release APK** | [**📥 Download RouterHub.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) | Optimized Production Build | ~16.3 MB |
-| 🔵 **Debug APK** | [**📥 Download RouterHub-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-debug.apk) | Standalone Debug Build | ~16.3 MB |
+| 🟢 **Release APK** | [**📥 Download RouterHub-v1.1-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-release.apk) | Production Release Build | ~11.4 MB |
+| 🔵 **Debug APK** | [**📥 Download RouterHub-v1.1-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-debug.apk) | Standalone Debug Build | ~16.4 MB |
 | 🌐 **Live Webpage** | [**Visit Webpage**](https://sakhanamit.github.io/RouterHubAndroid/) | Interactive Demo & Documentation | -- |
-| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.0.0 Changelog | -- |
+| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.1.0 Changelog | -- |
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ## ⚡ Introduction
 
-**RouterHub** is a high-performance, privacy-focused Android application designed to put professional network administration, router management, device discovery, and security auditing into your pocket.
+**RouterHub** is a high-performance, privacy-focused Android application designed to put professional network administration, router management, device discovery, speed testing, and security auditing into your pocket.
 
 Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Material 3**, and **Hardware Encryption**, RouterHub eliminates the friction of discovering local IP addresses, accessing router dashboards, identifying connected Wi-Fi hosts, and auditing home networks for security vulnerabilities.
 
@@ -38,7 +38,7 @@ Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Mate
 ## 📥 Direct Download & Installation Guide
 
 ### Option 1: Direct APK Download
-1. Click [**Download RouterHub.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub.apk) to get the latest APK.
+1. Click [**Download RouterHub-v1.1-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-release.apk) to get the latest APK.
 2. Transfer or open the file on your Android device (Android 8.0+ / API 26+).
 3. Enable **"Install from Unknown Sources"** if prompted by Android.
 4. Tap install and launch **RouterHub**!
@@ -57,6 +57,7 @@ flowchart TD
         B --> C1[Router Management Hub]
         B --> C2[Subnet Coroutine Scanner]
         B --> C3[Security Audit Engine]
+        B --> C4[Google Speed Test Service]
     end
 
     subgraph Security & Storage
@@ -64,13 +65,13 @@ flowchart TD
         C1 --> D2[Embedded Web Console\nCustom WebView]
 
         C2 --> E1[ARP Table Inspector\n/proc/net/arp]
-        C2 --> E2[Multi-Threaded Port Scanner]
-        C2 --> E3[Vendor OUI & Banner Grabber]
+        C2 --> E2[Categorized Host Classification]
+        C2 --> E3[Protocol Badges & Latency Colors]
 
         C3 --> F1[Weak Credential Probe]
         C3 --> F2[Unencrypted HTTP Detector]
         C3 --> F3[Risky Port Probe\nTelnet / FTP / SMB]
-        C3 --> F4[WPS / UPnP Exposure Analysis]
+        C3 --> F4[Dedicated Rescan Engine]
     end
 
     F1 & F2 & F3 & F4 --> G[Security Health Score\n0 - 100]
@@ -82,12 +83,12 @@ flowchart TD
 
 | Capability | RouterHub Android | Standard Wi-Fi Apps |
 | :--- | :---: | :---: |
-| 📡 **Smart Gateway Discovery** | ✅ Instant Auto-Detect | ❌ Manual IP Entry |
+| 📡 **Smart Gateway Discovery** | ✅ Instant Auto-Detect & Dynamic Polling | ❌ Manual IP Entry |
 | 🔐 **Encrypted Credentials Store** | ✅ Hardware AES-256 GCM | ❌ Plaintext / None |
-| ⚡ **Subnet Coroutine Sweep** | ✅ Concurrent 254 Hosts (<3s) | ⚠️ Slow / Sequential |
-| 🏷️ **Kernel ARP Hardware ID** | ✅ Resolution via `/proc/net/arp` | ❌ Generic IP Only |
-| 🛡️ **Automated Security Audit** | ✅ 0–100 Rating + Fix Guide | ❌ Basic Ping Only |
-| 🔒 **100% On-Device & No Telemetry** | ✅ Zero Analytics / Tracking | ❌ Cloud Telemetry |
+| ⚡ **Subnet Coroutine Sweep** | ✅ Categorized Devices + Protocol Badges | ⚠️ Slow / Uncategorized |
+| 🚀 **Google Speedometer Test** | ✅ Real-time Down/Up Mbps + Gauge | ❌ None / Basic Ping |
+| 🛡️ **Automated Security Audit** | ✅ 0–100 Rating + Dedicated Rescan | ❌ Basic Ping Only |
+| 🔒 **100% On-Device & Privacy Masking** | ✅ Zero Analytics + IP/MAC Masking | ❌ Cloud Telemetry |
 
 ---
 
@@ -98,7 +99,7 @@ flowchart TD
 
 <br/>
 
-* **Dynamic Gateway Resolver:** Automatically identifies active gateway router IPs (`ConnectivityManager` & route tables).
+* **Dynamic Gateway Resolver:** Automatically identifies active gateway router IPs (`ConnectivityManager` & route tables) with dynamic 3s polling.
 * **Router Profiles:** Store and manage configurations for multiple routers (home, office, secondary APs).
 * **Embedded Configuration Portal:** Custom-tuned WebView with desktop user-agent switching, HTTP basic auth support, and self-signed SSL bypass for local router dashboards.
 * **Hardware Credential Security:** Router login passwords encrypted via `EncryptedSharedPreferences` (AES-256 GCM + Android Keystore).
@@ -110,27 +111,35 @@ flowchart TD
 <br/>
 
 * **Concurrent Subnet Sweep:** Asynchronously probes all 254 hosts on a `/24` subnet using Kotlin Coroutine dispatchers.
-* **Device Classification:** Auto-classifies hosts as *Routers, Smartphones, Computers, Smart TVs, IoT, Printers, Cameras, or Network Storage*.
+* **Categorized Device Identification:** Auto-classifies hosts as *Gateways & Routers, Smartphones & Mobile, Computers & Laptops, Smart TVs & Media, Smart Home & IoT, Printers & Cameras, or Network Storage*.
 * **Comprehensive Host Diagnostics:**
   * IP & MAC address resolution via ARP inspection (`/proc/net/arp`).
-  * Vendor OUI, Brand, and Model mapping.
-  * Ping response latency (`pingMs`).
-  * Open port identification (HTTP, HTTPS, SSH, FTP, Telnet, RTSP, SMB) & web title extraction.
-* **One-Tap Clipboard Copy:** Fast copying for IP and MAC addresses.
+  * Protocol badges (`HTTP`, `HTTPS`, `SSH`, `TELNET`, `SMB`, `RTSP`, `WEB`).
+  * Color-coded ping latency (`⚡ 12ms` green, `📶 48ms` amber, `🐢 165ms` red).
+* **Privacy Data Masking:** One-tap top bar toggle to mask IP (`192.168.1.***`) and MAC (`50:C7:BF:**:**:**`) for privacy and screenshots.
 </details>
 
 <details font-size="16px">
-<summary><b>🛡️ 3. Automated Wi-Fi Security Audit Engine</b> (Click to Expand)</summary>
+<summary><b>🚀 3. Google Speedometer Test Service</b> (Click to Expand)</summary>
+
+<br/>
+
+* **Google Measurement CDN:** High-bandwidth speed test engine powered by Google CDN servers (`dl.google.com`, `storage.googleapis.com`, `dns.google`).
+* **Speedometer Gauge UI:** Semi-circular progress arc with animated needle, download/upload Mbps metrics, ping latency, and jitter.
+* **Zero-Allocation Memory Engine:** Static buffer reuse (`REUSABLE_BUFFER`), eliminating Garbage Collection overhead and OutOfMemory crashes.
+</details>
+
+<details font-size="16px">
+<summary><b>🛡️ 4. Automated Wi-Fi Security Audit Engine</b> (Click to Expand)</summary>
 
 <br/>
 
 * **0–100 Security Rating:** Real-time health score with color-coded severity levels (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`).
+* **Dedicated Rescan Button:** On-demand security re-auditing button with real-time status animation.
 * **Multi-Point Vulnerability Checks:**
   * Unencrypted HTTP router management portals.
   * Exposed high-risk legacy ports (Telnet 23, FTP 21, SMB 445).
   * Weak/default administrative credential exposure risks.
-  * UPnP and WPS security exposure.
-* **Step-by-Step Remediation:** Clear hardening recommendations for every flagged issue.
 </details>
 
 ---
@@ -148,8 +157,8 @@ flowchart TD
 git clone https://github.com/sakhanamit/RouterHubAndroid.git
 cd RouterHubAndroid
 
-# Assemble debug build
-./gradlew assembleDebug
+# Assemble debug and release builds
+./gradlew assembleDebug assembleRelease
 ```
 
 ---
@@ -162,7 +171,7 @@ RouterHub strictly enforces a **Zero-Telemetry, 100% On-Device Data Policy**:
 
 | Permission | Reason |
 | :--- | :--- |
-| `INTERNET` | Perform local socket probes and subnet ping checks |
+| `INTERNET` | Perform local socket probes, speed test, and subnet ping checks |
 | `ACCESS_NETWORK_STATE` | Read active Wi-Fi IP, gateway, and subnet mask |
 | `ACCESS_WIFI_STATE` | Verify active Wi-Fi connection state |
 
