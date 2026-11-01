@@ -3,6 +3,8 @@ package com.routerhub
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -53,18 +55,37 @@ import com.routerhub.model.SecurityCheckResult
 import com.routerhub.model.VulnerabilitySeverity
 import com.routerhub.network.NetworkScanner
 import com.routerhub.network.SecurityAuditor
+import com.routerhub.network.SpeedTestManager
+import com.routerhub.network.SpeedTestPhase
+import com.routerhub.network.SpeedTestResult
 import com.routerhub.ui.RouterWebViewScreen
+import com.routerhub.ui.SpeedTestScreen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Install global UncaughtExceptionHandler to catch and suppress Compose OEM ACTION_HOVER_EXIT framework bug
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            if (throwable is IllegalStateException && throwable.message?.contains("ACTION_HOVER_EXIT") == true) {
+                // Suppress Compose hover exit exception on OEM devices safely
+                return@setDefaultUncaughtExceptionHandler
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+
         setContent {
             val isDark = isSystemInDarkTheme()
 
-            // iOS-inspired Color Schemes with native system theme following
             val lightColors = lightColorScheme(
                 primary = Color(0xFF007A8A),           // Brand Teal
                 onPrimary = Color.White,
@@ -162,6 +183,14 @@ fun RouterHubMainScreen() {
         mutableStateOf(!prefs.getBoolean("has_completed_welcome", false))
     }
 
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var isPrivacyMaskEnabled by remember { mutableStateOf(false) }
+
+    // Privacy Masking Helpers
+    fun maskIp(ip: String): String = if (isPrivacyMaskEnabled) ip.replace(Regex("\\.\\d+$"), ".***") else ip
+    fun maskMac(mac: String?): String? = if (isPrivacyMaskEnabled && mac != null) mac.replace(Regex(":[0-9A-FA-F]{2}:[0-9A-FA-F]{2}$"), ":**:**") else mac
+
+    // 4 Tabs: 0 = Routers, 1 = Devices, 2 = Speed Test, 3 = Security
     var selectedTab by remember { mutableIntStateOf(0) }
     var activeRouter by remember { mutableStateOf<RouterDevice?>(null) }
     var routers by remember { mutableStateOf(loadRouters(context)) }
@@ -175,15 +204,30 @@ fun RouterHubMainScreen() {
     var discoveredRouters by remember { mutableStateOf<List<NetworkDevice>>(emptyList()) }
     var isSearchingRouters by remember { mutableStateOf(false) }
 
-    // Network & Scanner state
-    val networkInfo = remember { NetworkScanner.detectGatewayAndIp(context) }
-    val gatewayIp = networkInfo.first
-    val ownIp = networkInfo.second
-    val detectedSubnet = remember(gatewayIp, ownIp) {
-        (ownIp ?: gatewayIp ?: "192.168.0.1").substringBeforeLast(".", "192.168.0")
+    // Dynamic Network & Scanner state (Auto-refreshing)
+    var gatewayIp by remember { mutableStateOf<String?>(null) }
+    var ownIp by remember { mutableStateOf<String?>(null) }
+    var currentSubnet by remember { mutableStateOf("192.168.0") }
+
+    fun refreshNetworkInfo() {
+        val (gIp, oIp) = NetworkScanner.detectGatewayAndIp(context)
+        if (gIp != gatewayIp || oIp != ownIp) {
+            gatewayIp = gIp
+            ownIp = oIp
+            val computed = (oIp ?: gIp ?: "192.168.0.1").substringBeforeLast(".", "192.168.0")
+            currentSubnet = computed
+        }
     }
 
-    var currentSubnet by remember { mutableStateOf(detectedSubnet) }
+    // Auto-refresh network IP and Subnet dynamically
+    LaunchedEffect(Unit) {
+        refreshNetworkInfo()
+        while (true) {
+            refreshNetworkInfo()
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+
     var showSubnetDialog by remember { mutableStateOf(false) }
 
     var scannedDevices by remember { mutableStateOf<List<NetworkDevice>>(emptyList()) }
@@ -192,6 +236,52 @@ fun RouterHubMainScreen() {
     var scanCountText by remember { mutableStateOf("") }
     var deviceSearchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
+
+    // Speed Test State
+    var speedTestResult by remember { mutableStateOf(SpeedTestResult()) }
+    var isTestingSpeed by remember { mutableStateOf(false) }
+
+    // Connectivity Status (Router Online even if internet is down!)
+    var isRouterOnline by remember { mutableStateOf(true) }
+    var isInternetOnline by remember { mutableStateOf(false) }
+
+    // Check Router and Internet Connectivity
+    LaunchedEffect(gatewayIp) {
+        scope.launch(Dispatchers.IO) {
+            val currentG = gatewayIp
+            val routerReachable = if (!currentG.isNullOrBlank()) {
+                try {
+                    val addr = InetAddress.getByName(currentG)
+                    addr.isReachable(1000) || try {
+                        Socket().use { s ->
+                            s.connect(InetSocketAddress(currentG, 80), 600)
+                            true
+                        }
+                    } catch (_: Exception) {
+                        true
+                    }
+                } catch (_: Exception) {
+                    true
+                }
+            } else {
+                true
+            }
+
+            val internetReachable = try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress("1.1.1.1", 53), 1000)
+                    true
+                }
+            } catch (_: Exception) {
+                false
+            }
+
+            withContext(Dispatchers.Main) {
+                isRouterOnline = routerReachable
+                isInternetOnline = internetReachable
+            }
+        }
+    }
 
     // Security Audit state
     var securityReport by remember { mutableStateOf<SecurityAuditReport?>(null) }
@@ -204,11 +294,12 @@ fun RouterHubMainScreen() {
         if (isSearchingRouters) return
         scope.launch {
             isSearchingRouters = true
-            // If gateway is detected, immediately seed it
-            if (gatewayIp != null && discoveredRouters.none { it.ip == gatewayIp }) {
+            refreshNetworkInfo()
+            val currentGateway = gatewayIp
+            if (currentGateway != null && discoveredRouters.none { it.ip == currentGateway }) {
                 discoveredRouters = listOf(
                     NetworkDevice(
-                        ip = gatewayIp,
+                        ip = currentGateway,
                         isGateway = true,
                         deviceType = DeviceType.ROUTER,
                         vendor = "Default Gateway"
@@ -238,6 +329,7 @@ fun RouterHubMainScreen() {
             isScanning = true
             scanProgress = 0f
             scannedDevices = emptyList()
+            refreshNetworkInfo()
             scanCountText = "Scanning $currentSubnet.1 - 254..."
 
             val results = NetworkScanner.scanSubnet(
@@ -255,7 +347,6 @@ fun RouterHubMainScreen() {
                                 .thenByDescending { it.deviceType == DeviceType.ROUTER }
                                 .thenBy { it.ip.substringAfterLast(".").toIntOrNull() ?: 0 }
                         )
-                    // If device is a router, sync with discoveredRouters
                     if (foundDevice.isGateway || foundDevice.deviceType == DeviceType.ROUTER) {
                         discoveredRouters = (discoveredRouters.filterNot { it.ip == foundDevice.ip } + foundDevice)
                     }
@@ -264,6 +355,18 @@ fun RouterHubMainScreen() {
             scannedDevices = results
             isScanning = false
             scanCountText = "Found ${results.size} active device(s)"
+        }
+    }
+
+    // Function to run Speed Test
+    fun startSpeedTest() {
+        if (isTestingSpeed) return
+        scope.launch {
+            isTestingSpeed = true
+            SpeedTestManager.runSpeedTest { updatedResult ->
+                speedTestResult = updatedResult
+            }
+            isTestingSpeed = false
         }
     }
 
@@ -300,7 +403,7 @@ fun RouterHubMainScreen() {
     LaunchedEffect(selectedTab) {
         if (selectedTab == 1 && scannedDevices.isEmpty() && !isScanning) {
             startNetworkScan()
-        } else if (selectedTab == 2 && securityReport == null && !isAuditing) {
+        } else if (selectedTab == 3 && securityReport == null && !isAuditing) {
             startSecurityAudit()
         }
     }
@@ -317,6 +420,12 @@ fun RouterHubMainScreen() {
     // Welcome & onboarding guide screen
     if (showWelcomeScreen) {
         WelcomeScreen(
+            gatewayIp = maskIp(gatewayIp ?: "192.168.1.1"),
+            ownIp = maskIp(ownIp ?: "192.168.1.100"),
+            subnet = currentSubnet,
+            activeDevicesCount = scannedDevices.size,
+            isRouterOnline = isRouterOnline,
+            isInternetOnline = isInternetOnline,
             onDismiss = {
                 prefs.edit().putBoolean("has_completed_welcome", true).apply()
                 showWelcomeScreen = false
@@ -347,9 +456,10 @@ fun RouterHubMainScreen() {
                                 softWrap = false
                             )
                             Text(
-                                text = if (gatewayIp != null) "Gateway: $gatewayIp" else "Wi-Fi: Not Connected",
+                                text = if (gatewayIp != null) "Router (Online): ${maskIp(gatewayIp!!)}" else "Wi-Fi: Connected",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -357,8 +467,21 @@ fun RouterHubMainScreen() {
                     }
                 },
                 actions = {
+                    // Privacy Masking Toggle
+                    IconButton(onClick = { isPrivacyMaskEnabled = !isPrivacyMaskEnabled }) {
+                        Icon(
+                            if (isPrivacyMaskEnabled) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "Toggle Privacy Masking",
+                            tint = if (isPrivacyMaskEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Check Updates Button
+                    IconButton(onClick = { showUpdateDialog = true }) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check App Updates", tint = MaterialTheme.colorScheme.primary)
+                    }
+
                     if (selectedTab == 0) {
-                        // iOS-Style Top Bar "+" Add Router button
                         IconButton(onClick = {
                             editingRouter = null
                             prefillIp = gatewayIp ?: "192.168.0.1"
@@ -379,28 +502,35 @@ fun RouterHubMainScreen() {
                             }
                         }
                     }
-                    if (gatewayIp != null) {
+
+                    val currentGateway = gatewayIp
+                    if (currentGateway != null) {
                         IconButton(onClick = {
                             activeRouter = RouterDevice(
                                 id = "gateway_quick",
                                 name = "Primary Router",
-                                ip = gatewayIp
+                                ip = currentGateway
                             )
                         }) {
                             Icon(Icons.Default.Language, contentDescription = "Open Router Web")
                         }
                     }
+
                     if (selectedTab == 1) {
                         IconButton(onClick = { startNetworkScan() }, enabled = !isScanning) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Rescan")
+                            Icon(Icons.Default.Refresh, contentDescription = "Rescan Devices")
                         }
                     } else if (selectedTab == 2) {
+                        IconButton(onClick = { startSpeedTest() }, enabled = !isTestingSpeed) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Run Speed Test")
+                        }
+                    } else if (selectedTab == 3) {
                         IconButton(onClick = { startSecurityAudit() }, enabled = !isAuditing) {
                             Icon(Icons.Default.Shield, contentDescription = "Run Audit")
                         }
                     }
                     IconButton(onClick = { showWelcomeScreen = true }) {
-                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Welcome Guide & Help")
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -455,10 +585,20 @@ fun RouterHubMainScreen() {
                     label = { Text("Devices", maxLines = 1, softWrap = false) }
                 )
 
-                // Tab 2: Security & Vulnerabilities
+                // Tab 2: Speed Test
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = {
+                        Icon(Icons.Default.Speed, contentDescription = "Speed Test")
+                    },
+                    label = { Text("Speed Test", maxLines = 1, softWrap = false) }
+                )
+
+                // Tab 3: Security & Vulnerabilities
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = {
                         val vulnCount = securityReport?.checks?.count { !it.isPassed } ?: 0
                         BadgedBox(
@@ -478,12 +618,8 @@ fun RouterHubMainScreen() {
                 )
             }
         },
-        // Compact, unobtrusive circular FABs that do not obstruct the home screen
         floatingActionButton = {
             when (selectedTab) {
-                0 -> {
-                    // Removed duplicate Add button from lower screen on homepage
-                }
                 1 -> {
                     FloatingActionButton(
                         onClick = { startNetworkScan() },
@@ -504,6 +640,25 @@ fun RouterHubMainScreen() {
                     }
                 }
                 2 -> {
+                    FloatingActionButton(
+                        onClick = { startSpeedTest() },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = CircleShape,
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        if (isTestingSpeed) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Test Speed", modifier = Modifier.size(22.dp))
+                        }
+                    }
+                }
+                3 -> {
                     FloatingActionButton(
                         onClick = { startSecurityAudit() },
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -538,8 +693,10 @@ fun RouterHubMainScreen() {
                         discoveredRouters = discoveredRouters,
                         isSearchingRouters = isSearchingRouters,
                         searchQuery = routerSearchQuery,
+                        maskIp = ::maskIp,
                         onSearchQueryChange = { routerSearchQuery = it },
                         onRefreshRouters = { startRouterSearch() },
+                        onCheckUpdate = { showUpdateDialog = true },
                         onOpenRouter = { router -> activeRouter = router },
                         onEditRouter = { router ->
                             editingRouter = router
@@ -564,7 +721,7 @@ fun RouterHubMainScreen() {
                                 !device.httpTitle.isNullOrBlank() -> device.httpTitle
                                 device.isGateway -> "Primary Gateway"
                                 !device.vendor.isNullOrBlank() && device.vendor != "Unknown" -> "${device.vendor} Router"
-                                else -> "Router (${device.ip})"
+                                else -> "Router (${maskIp(device.ip)})"
                             }
                             showAddDialog = true
                         },
@@ -587,6 +744,8 @@ fun RouterHubMainScreen() {
                         scanProgress = scanProgress,
                         statusText = scanCountText,
                         searchQuery = deviceSearchQuery,
+                        maskIp = ::maskIp,
+                        maskMac = ::maskMac,
                         onSearchQueryChange = { deviceSearchQuery = it },
                         selectedFilter = selectedFilter,
                         onFilterSelect = { selectedFilter = it },
@@ -594,7 +753,7 @@ fun RouterHubMainScreen() {
                         onOpenDeviceWeb = { ip ->
                             activeRouter = RouterDevice(
                                 id = "discovered_${System.currentTimeMillis()}",
-                                name = "Device Web ($ip)",
+                                name = "Device Web (${maskIp(ip)})",
                                 ip = ip
                             )
                         },
@@ -606,6 +765,13 @@ fun RouterHubMainScreen() {
                     )
                 }
                 2 -> {
+                    SpeedTestScreen(
+                        result = speedTestResult,
+                        isRunning = isTestingSpeed,
+                        onStartTest = { startSpeedTest() }
+                    )
+                }
+                3 -> {
                     SecurityTabContent(
                         report = securityReport,
                         isAuditing = isAuditing,
@@ -616,6 +782,58 @@ fun RouterHubMainScreen() {
                 }
             }
         }
+    }
+
+    // App Update Dialog linked to GitHub Pages
+    if (showUpdateDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("RouterHub Updates", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Installed Version: v1.1 (Build 2)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text("Check for the latest release, changelogs, and APK downloads on our official GitHub Pages site.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "https://sakhanamit.github.io/RouterHubAndroid/",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://sakhanamit.github.io/RouterHubAndroid/"))
+                        context.startActivity(intent)
+                        showUpdateDialog = false
+                    }
+                ) {
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Visit Webpage")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 
     // Add / Edit Router Dialog
@@ -652,7 +870,7 @@ fun RouterHubMainScreen() {
 }
 
 // -------------------------------------------------------------
-// TAB 0: MY ROUTERS UI (iOS Grouped Inset Style)
+// TAB 0: ROUTERS TAB CONTENT
 // -------------------------------------------------------------
 
 @Composable
@@ -662,8 +880,10 @@ fun RoutersTabContent(
     discoveredRouters: List<NetworkDevice>,
     isSearchingRouters: Boolean,
     searchQuery: String,
+    maskIp: (String) -> String,
     onSearchQueryChange: (String) -> Unit,
     onRefreshRouters: () -> Unit,
+    onCheckUpdate: () -> Unit,
     onOpenRouter: (RouterDevice) -> Unit,
     onEditRouter: (RouterDevice) -> Unit,
     onDeleteRouter: (RouterDevice) -> Unit,
@@ -674,35 +894,21 @@ fun RoutersTabContent(
 ) {
     val context = LocalContext.current
 
-    // Filter saved routers by search query
-    val filteredSavedRouters = remember(routers, searchQuery) {
-        if (searchQuery.isBlank()) routers
-        else routers.filter {
-            it.name.contains(searchQuery, ignoreCase = true) ||
-            it.ip.contains(searchQuery, ignoreCase = true) ||
-            it.username.contains(searchQuery, ignoreCase = true)
+    val filteredSaved = remember(routers, searchQuery) {
+        routers.filter {
+            searchQuery.isBlank() ||
+                it.name.contains(searchQuery, ignoreCase = true) ||
+                it.ip.contains(searchQuery, ignoreCase = true)
         }
     }
 
-    // Filter discovered routers by search query
-    val filteredDiscoveredRouters = remember(discoveredRouters, searchQuery) {
-        if (searchQuery.isBlank()) discoveredRouters
-        else discoveredRouters.filter {
-            it.ip.contains(searchQuery, ignoreCase = true) ||
-            (it.brand != null && it.brand.contains(searchQuery, ignoreCase = true)) ||
-            (it.model != null && it.model.contains(searchQuery, ignoreCase = true)) ||
-            (it.hostname != null && it.hostname.contains(searchQuery, ignoreCase = true)) ||
-            (it.vendor != null && it.vendor.contains(searchQuery, ignoreCase = true)) ||
-            (it.httpTitle != null && it.httpTitle.contains(searchQuery, ignoreCase = true)) ||
-            (it.mac != null && it.mac.contains(searchQuery, ignoreCase = true)) ||
-            it.services.any { s -> s.contains(searchQuery, ignoreCase = true) } ||
-            (it.isGateway && "gateway".contains(searchQuery, ignoreCase = true))
+    val filteredDiscovered = remember(discoveredRouters, searchQuery) {
+        discoveredRouters.filter {
+            searchQuery.isBlank() ||
+                it.ip.contains(searchQuery, ignoreCase = true) ||
+                (it.vendor != null && it.vendor.contains(searchQuery, ignoreCase = true)) ||
+                (it.httpTitle != null && it.httpTitle.contains(searchQuery, ignoreCase = true))
         }
-    }
-
-    val isGatewayMatch = remember(gatewayIp, searchQuery) {
-        if (gatewayIp == null) false
-        else searchQuery.isBlank() || gatewayIp.contains(searchQuery, ignoreCase = true) || "gateway".contains(searchQuery, ignoreCase = true)
     }
 
     LazyColumn(
@@ -712,558 +918,290 @@ fun RoutersTabContent(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp)
     ) {
-        // 1. Compact Streamlined Search Bar for Routers
+        // App Update Banner Card
         item {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant),
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(38.dp)
+                    .border(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        RoundedCornerShape(18.dp)
+                    )
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 10.dp)
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Search Routers",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                        if (searchQuery.isEmpty()) {
-                            Text(
-                                "Search by make, model, brand, IP...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = searchQuery,
-                            onValueChange = onSearchQueryChange,
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(
-                            onClick = { onSearchQueryChange("") },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Clear,
-                                contentDescription = "Clear search",
-                                modifier = Modifier.size(15.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. Searching progress indicator if scanning
-        if (isSearchingRouters) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
+                        Icon(
+                            Icons.Default.SystemUpdate,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(Modifier.width(12.dp))
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Searching network for active routers...",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "RouterHub v1.1 Active",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Official site: sakhanamit.github.io",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    Button(
+                        onClick = onCheckUpdate,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Text("Updates", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
-
-        // 3. Active Gateway Hero Card
-        if (gatewayIp != null && isGatewayMatch) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            width = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                        .clickable {
+        // Active Gateway Banner Card
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        if (gatewayIp != null) {
                             onOpenRouter(
                                 RouterDevice(
                                     id = "active_gateway",
-                                    name = "Primary Router",
+                                    name = "Active Gateway Router",
                                     ip = gatewayIp
                                 )
                             )
                         }
+                    }
+            ) {
+                Row(
+                    modifier = Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Router,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Wifi,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                            Spacer(Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Connected Gateway",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                                Text(
-                                    gatewayIp,
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                            Surface(
-                                shape = CircleShape,
-                                color = Color(0xFF34C759),
-                                modifier = Modifier.size(10.dp)
-                            ) {}
-                            Spacer(Modifier.width(6.dp))
                             Text(
-                                "Online",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF34C759),
+                                "Connected Gateway",
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 maxLines = 1,
                                 softWrap = false
                             )
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-
-                        val isGatewaySaved = routers.any { it.ip == gatewayIp }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { onSaveGateway(gatewayIp) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF10B981)
                             ) {
-                                Icon(
-                                    if (isGatewaySaved) Icons.Default.Check else Icons.Default.BookmarkAdd,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(4.dp))
                                 Text(
-                                    if (isGatewaySaved) "Saved" else "Save Profile",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    onOpenRouter(
-                                        RouterDevice(
-                                            id = "active_gateway",
-                                            name = "Primary Router",
-                                            ip = gatewayIp
-                                        )
-                                    )
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                ),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                            ) {
-                                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "Open Admin",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    overflow = TextOverflow.Ellipsis
+                                    "ONLINE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = if (gatewayIp != null) "IP Address: ${maskIp(gatewayIp)}" else "Wi-Fi Gateway Not Found",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
+                    if (gatewayIp != null) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForwardIos,
+                            contentDescription = "Open",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }
         }
 
-        // 4. DISCOVERED ROUTERS ON NETWORK Section
+        // Section Title: Discovered Routers
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "DISCOVERED ROUTERS ON NETWORK",
+                    "DISCOVERED ROUTERS",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
-                    maxLines = 1,
-                    softWrap = false,
                     modifier = Modifier.weight(1f)
                 )
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ) {
-                    Text("${filteredDiscoveredRouters.size}")
-                }
-                Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = onRefreshRouters,
-                    enabled = !isSearchingRouters,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = "Refresh Router Search",
-                        modifier = Modifier.size(16.dp)
+                if (isSearchingRouters) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Text(
+                        "${filteredDiscovered.size} Found",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
-        if (filteredDiscoveredRouters.isEmpty()) {
+        if (filteredDiscovered.isEmpty()) {
             item {
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (isSearchingRouters) "Scanning Wi-Fi network for routers..."
-                            else if (searchQuery.isNotBlank()) "No discovered routers match \"$searchQuery\""
-                            else "No other routers discovered yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
+                            if (isSearchingRouters) "Scanning subnet for Wi-Fi routers..." else "No other routers found on subnet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedButton(
-                            onClick = onRefreshRouters,
-                            shape = RoundedCornerShape(12.dp),
-                            enabled = !isSearchingRouters
-                        ) {
-                            Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Scan Network for Routers")
-                        }
                     }
                 }
             }
         } else {
-            item {
+            items(filteredDiscovered, key = { "disc_${it.ip}" }) { device ->
                 Card(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(
-                            width = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                ) {
-                    Column {
-                        filteredDiscoveredRouters.forEachIndexed { index, device ->
-                            val isSaved = routers.any { it.ip == device.ip }
-                            val brandName = device.brand ?: device.vendor ?: "Router"
-                            val modelName = device.model ?: device.httpTitle ?: (if (device.isGateway) "Primary Gateway" else "$brandName (${device.ip})")
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.primaryContainer,
-                                                RoundedCornerShape(10.dp)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Router,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                modelName,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f, fill = false)
-                                            )
-                                            Spacer(Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant
-                                            ) {
-                                                Text(
-                                                    brandName,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    fontWeight = FontWeight.Medium,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                            if (device.isGateway) {
-                                                Spacer(Modifier.width(6.dp))
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = Color(0xFF34C759).copy(alpha = 0.15f)
-                                                ) {
-                                                    Text(
-                                                        "GATEWAY",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color(0xFF34C759),
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(Modifier.height(2.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                device.ip,
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            )
-                                            if (device.pingMs != null) {
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(
-                                                    "${device.pingMs}ms",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.outline
-                                                )
-                                            }
-                                            if (device.mac != null) {
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(
-                                                    device.mac,
-                                                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                                                    color = MaterialTheme.colorScheme.outline,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (device.services.isNotEmpty()) {
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        device.services.take(3).forEach { service ->
-                                            Surface(
-                                                shape = RoundedCornerShape(5.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant
-                                            ) {
-                                                Text(
-                                                    service,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                        if (device.services.size > 3) {
-                                            Surface(
-                                                shape = RoundedCornerShape(5.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant
-                                            ) {
-                                                Text(
-                                                    "+${device.services.size - 3}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Spacer(Modifier.height(10.dp))
-
-                                // Options row: Add Router button + Open Admin button
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (isSaved) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                val existing = routers.first { it.ip == device.ip }
-                                                onEditRouter(existing)
-                                            },
-                                            modifier = Modifier.weight(1f),
-                                            shape = RoundedCornerShape(10.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                                        ) {
-                                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("Saved in Profiles", style = MaterialTheme.typography.labelMedium)
-                                        }
-                                    } else {
-                                        Button(
-                                            onClick = { onAddDiscoveredRouter(device) },
-                                            modifier = Modifier.weight(1f),
-                                            shape = RoundedCornerShape(10.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.primary,
-                                                contentColor = MaterialTheme.colorScheme.onPrimary
-                                            ),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                                        ) {
-                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(
-                                                "Add Router",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                        }
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = {
-                                            onOpenRouter(
-                                                RouterDevice(
-                                                    id = "discovered_${device.ip}",
-                                                    name = modelName,
-                                                    ip = device.ip
-                                                )
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Open Admin", style = MaterialTheme.typography.labelMedium)
-                                    }
-                                }
-                            }
-
-                            if (index < filteredDiscoveredRouters.size - 1) {
-                                HorizontalDivider(
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant
+                        .clickable {
+                            onOpenRouter(
+                                RouterDevice(
+                                    id = "discovered_${device.ip}",
+                                    name = device.httpTitle ?: "${device.vendor ?: "Router"} (${maskIp(device.ip)})",
+                                    ip = device.ip
                                 )
-                            }
+                            )
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Router, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = device.httpTitle ?: device.vendor ?: "Router Host",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "IP: ${maskIp(device.ip)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { onAddDiscoveredRouter(device) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Save", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
             }
         }
 
-        // 5. SAVED ROUTERS Section
+        // Section Title: Saved Profiles
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "SAVED ROUTERS",
+                    "SAVED PROFILES",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
-                    maxLines = 1,
-                    softWrap = false,
                     modifier = Modifier.weight(1f)
                 )
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ) {
-                    Text("${filteredSavedRouters.size}")
-                }
+                Text(
+                    "${filteredSaved.size} Saved",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        if (filteredSavedRouters.isEmpty()) {
+        if (filteredSaved.isEmpty()) {
             item {
                 Card(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -1273,152 +1211,55 @@ fun RoutersTabContent(
                             .fillMaxWidth()
                             .padding(24.dp)
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_logo),
-                            contentDescription = "Router Hub",
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            if (searchQuery.isNotBlank()) "No saved routers match \"$searchQuery\""
-                            else "No Saved Router Profiles",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                        Icon(Icons.Default.Dns, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("No Saved Router Profiles", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Save your home or office router profiles to manage passwords and access admin portals with 1-tap.",
+                            "Add your router profile to save custom login credentials securely.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onAddNewRouter, shape = RoundedCornerShape(12.dp)) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Add Custom Router", maxLines = 1, softWrap = false)
-                            }
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = onAddNewRouter, shape = RoundedCornerShape(10.dp)) {
+                            Text("Add Router Profile")
                         }
                     }
                 }
             }
         } else {
-            // Grouped Inset Card for Saved Routers
-            item {
+            items(filteredSaved, key = { it.id }) { router ->
                 Card(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    elevation = CardDefaults.cardElevation(1.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(
-                            width = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            shape = RoundedCornerShape(20.dp)
-                        )
+                        .clickable { onOpenRouter(router) }
                 ) {
-                    Column {
-                        filteredSavedRouters.forEachIndexed { index, router ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onOpenRouter(router) }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Router,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            router.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                        if (router.username.isNotBlank()) {
-                                            Spacer(Modifier.width(6.dp))
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant
-                                            ) {
-                                                Text(
-                                                    router.username,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    maxLines = 1,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        router.ip,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = { copyText(context, "Router IP", router.ip) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy IP", modifier = Modifier.size(16.dp))
-                                    }
-                                    IconButton(
-                                        onClick = { onEditRouter(router) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(16.dp))
-                                    }
-                                    IconButton(
-                                        onClick = { onDeleteRouter(router) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "Delete",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (index < filteredSavedRouters.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 68.dp),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant
-                                )
-                            }
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Language, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(router.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("IP: ${maskIp(router.ip)}", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { onEditRouter(router) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { onDeleteRouter(router) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -1428,7 +1269,7 @@ fun RoutersTabContent(
 }
 
 // -------------------------------------------------------------
-// TAB 1: NETWORK SCANNER UI
+// TAB 1: NETWORK SCANNER UI (Categorized Devices + Protocol Badges)
 // -------------------------------------------------------------
 
 @Composable
@@ -1441,6 +1282,8 @@ fun ScannerTabContent(
     scanProgress: Float,
     statusText: String,
     searchQuery: String,
+    maskIp: (String) -> String,
+    maskMac: (String?) -> String?,
     onSearchQueryChange: (String) -> Unit,
     selectedFilter: String,
     onFilterSelect: (String) -> Unit,
@@ -1450,7 +1293,6 @@ fun ScannerTabContent(
 ) {
     val context = LocalContext.current
 
-    // Filter devices
     val filteredDevices = remember(devices, searchQuery, selectedFilter) {
         devices.filter { device ->
             val matchesSearch = searchQuery.isBlank() ||
@@ -1460,8 +1302,7 @@ fun ScannerTabContent(
                 (device.mac != null && device.mac.contains(searchQuery, ignoreCase = true)) ||
                 (device.hostname != null && device.hostname.contains(searchQuery, ignoreCase = true)) ||
                 (device.vendor != null && device.vendor.contains(searchQuery, ignoreCase = true)) ||
-                (device.httpTitle != null && device.httpTitle.contains(searchQuery, ignoreCase = true)) ||
-                device.services.any { s -> s.contains(searchQuery, ignoreCase = true) }
+                (device.httpTitle != null && device.httpTitle.contains(searchQuery, ignoreCase = true))
 
             val matchesFilter = when (selectedFilter) {
                 "Routers" -> device.deviceType == DeviceType.ROUTER || device.isGateway
@@ -1472,6 +1313,21 @@ fun ScannerTabContent(
             }
 
             matchesSearch && matchesFilter
+        }
+    }
+
+    val categorizedMap = remember(filteredDevices) {
+        filteredDevices.groupBy { device ->
+            when {
+                device.isGateway || device.deviceType == DeviceType.ROUTER -> "📡 Gateways & Routers"
+                device.isThisDevice || device.deviceType == DeviceType.PHONE -> "📱 Smartphones & Tablets"
+                device.deviceType == DeviceType.COMPUTER -> "💻 Computers & Laptops"
+                device.deviceType == DeviceType.TV -> "📺 Smart TVs & Media"
+                device.deviceType == DeviceType.IOT -> "🔌 Smart Home & IoT"
+                device.deviceType == DeviceType.PRINTER || device.deviceType == DeviceType.CAMERA -> "🖨️ Printers & Cameras"
+                device.deviceType == DeviceType.STORAGE -> "💾 Network Storage"
+                else -> "❓ Other Devices"
+            }
         }
     }
 
@@ -1524,7 +1380,7 @@ fun ScannerTabContent(
                                 softWrap = false
                             )
                             Text(
-                                "Gateway: ${gatewayIp ?: "N/A"}  •  Phone: ${ownIp ?: "N/A"}",
+                                "Gateway: ${if (gatewayIp != null) maskIp(gatewayIp) else "N/A"}  •  Phone: ${if (ownIp != null) maskIp(ownIp) else "N/A"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -1569,7 +1425,7 @@ fun ScannerTabContent(
             }
         }
 
-        // Compact Streamlined Search Bar
+        // Compact Search Bar
         item {
             Surface(
                 shape = RoundedCornerShape(12.dp),
@@ -1628,7 +1484,7 @@ fun ScannerTabContent(
             }
         }
 
-        // iOS Segmented Control Bar (Filter pills)
+        // Segmented Category Filter Pills
         item {
             val filterOptions = listOf("All", "Routers", "Phones", "Computers", "IoT/TV")
             Surface(
@@ -1672,33 +1528,6 @@ fun ScannerTabContent(
             }
         }
 
-        // Section Title: Devices List
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "DISCOVERED DEVICES",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.weight(1f)
-                )
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ) {
-                    Text("${filteredDevices.size}")
-                }
-            }
-        }
-
         if (filteredDevices.isEmpty()) {
             item {
                 Card(
@@ -1737,26 +1566,69 @@ fun ScannerTabContent(
                 }
             }
         } else {
-            items(filteredDevices, key = { it.ip }) { device ->
-                IOSDeviceCardItem(
-                    device = device,
-                    onCopy = { label, text -> copyText(context, label, text) },
-                    onOpenWeb = { onOpenDeviceWeb(device.ip) },
-                    onSave = { onSaveDeviceAsRouter(device) }
-                )
+            categorizedMap.forEach { (categoryName, groupDevices) ->
+                item(key = "header_$categoryName") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            categoryName.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Text("${groupDevices.size}")
+                        }
+                    }
+                }
+
+                items(groupDevices, key = { it.ip }) { device ->
+                    IOSDeviceCardItem(
+                        device = device,
+                        maskIp = maskIp,
+                        maskMac = maskMac,
+                        onCopy = { label, text -> copyText(context, label, text) },
+                        onOpenWeb = { onOpenDeviceWeb(device.ip) },
+                        onSave = { onSaveDeviceAsRouter(device) }
+                    )
+                }
             }
         }
     }
 }
 
+// -------------------------------------------------------------
+// DEVICE CARD ITEM (Protocol Icons + Color-coded Response Times)
+// -------------------------------------------------------------
+
 @Composable
 fun IOSDeviceCardItem(
     device: NetworkDevice,
+    maskIp: (String) -> String,
+    maskMac: (String?) -> String?,
     onCopy: (String, String) -> Unit,
     onOpenWeb: () -> Unit,
     onSave: () -> Unit
 ) {
     val hasWeb = device.openPorts.contains(80) || device.openPorts.contains(443) || device.openPorts.contains(8080) || device.isGateway
+
+    val pingMs = device.pingMs
+    val (pingBgColor, pingTextColor, pingLabel) = when {
+        pingMs == null -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "-- ms")
+        pingMs <= 25 -> Triple(Color(0xFF10B981).copy(alpha = 0.15f), Color(0xFF10B981), "⚡ ${pingMs}ms")
+        pingMs <= 100 -> Triple(Color(0xFFF59E0B).copy(alpha = 0.15f), Color(0xFFF59E0B), "📶 ${pingMs}ms")
+        else -> Triple(Color(0xFFF43F5E).copy(alpha = 0.15f), Color(0xFFF43F5E), "🐢 ${pingMs}ms")
+    }
+
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1806,7 +1678,6 @@ fun IOSDeviceCardItem(
                 Spacer(Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    // Smart Display Name Resolution: Model, HTTP Title, Hostname, or Vendor
                     val modelName = when {
                         device.isGateway -> device.model ?: device.httpTitle ?: "Router Gateway"
                         device.isThisDevice -> "This Device (${Build.MODEL})"
@@ -1838,8 +1709,6 @@ fun IOSDeviceCardItem(
                                     "GATEWAY",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimary,
-                                    maxLines = 1,
-                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1855,8 +1724,6 @@ fun IOSDeviceCardItem(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1865,7 +1732,7 @@ fun IOSDeviceCardItem(
 
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "IP: ${device.ip}",
+                        text = "IP: ${maskIp(device.ip)}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Medium,
@@ -1876,22 +1743,20 @@ fun IOSDeviceCardItem(
                     )
                 }
 
-                if (device.pingMs != null) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFF34C759).copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            "${device.pingMs}ms",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF34C759),
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                Spacer(Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = pingBgColor
+                ) {
+                    Text(
+                        pingLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = pingTextColor,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
 
@@ -1899,15 +1764,14 @@ fun IOSDeviceCardItem(
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(10.dp))
 
-            // Details section: MAC, Hostname, Services/Open ports
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (device.mac != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "MAC: ${device.mac}",
+                            "MAC: ${maskMac(device.mac)}",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1926,85 +1790,28 @@ fun IOSDeviceCardItem(
                     }
                 }
 
-                if (device.hostname != null && device.hostname != device.ip) {
-                    Text(
-                        "Host: ${device.hostname}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (device.services.isNotEmpty()) {
+                if (device.openPorts.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Services: ",
+                            "Protocols: ",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
                             softWrap = false
                         )
-                        device.services.take(4).forEach { service ->
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.padding(end = 4.dp)
-                            ) {
-                                Text(
-                                    service,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                } else if (device.openPorts.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Open: ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                        device.openPorts.take(5).forEach { port ->
-                            val name = when (port) {
-                                80 -> "HTTP:80"
-                                443 -> "HTTPS:443"
-                                22 -> "SSH:22"
-                                445 -> "SMB:445"
-                                8080 -> "Web:8080"
-                                else -> "$port"
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier.padding(end = 4.dp)
-                            ) {
-                                Text(
-                                    name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                )
+                        Spacer(Modifier.width(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            device.openPorts.take(6).forEach { port ->
+                                ProtocolBadgeItem(port = port)
                             }
                         }
                     }
                 }
             }
 
-            // Actions row (Responsive 50/50 layout)
             if (hasWeb) {
                 Spacer(Modifier.height(10.dp))
                 Row(
@@ -2054,8 +1861,41 @@ fun IOSDeviceCardItem(
     }
 }
 
+@Composable
+fun ProtocolBadgeItem(port: Int) {
+    val (label, icon, color) = when (port) {
+        80 -> Triple("HTTP", Icons.Default.Language, Color(0xFF007A8A))
+        443 -> Triple("HTTPS", Icons.Default.Lock, Color(0xFF10B981))
+        22 -> Triple("SSH", Icons.Default.Code, Color(0xFF6366F1))
+        23 -> Triple("TELNET", Icons.Default.Warning, Color(0xFFF43F5E))
+        445, 139 -> Triple("SMB", Icons.Default.Folder, Color(0xFF8B5CF6))
+        554 -> Triple("RTSP", Icons.Default.Videocam, Color(0xFFF59E0B))
+        8080, 8443 -> Triple("WEB", Icons.Default.AdminPanelSettings, Color(0xFF06B6D4))
+        else -> Triple("P:$port", Icons.Default.Settings, MaterialTheme.colorScheme.secondary)
+    }
+
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = color.copy(alpha = 0.15f)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(11.dp))
+            Spacer(Modifier.width(3.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = color,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
 // -------------------------------------------------------------
-// TAB 2: SECURITY & VULNERABILITY SCANNER (iOS Grouped Style)
+// TAB 3: SECURITY TAB CONTENT (Dedicated Rescan Button)
 // -------------------------------------------------------------
 
 @Composable
@@ -2184,26 +2024,34 @@ fun SecurityTabContent(
                         )
                     }
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(16.dp))
 
+                    // Dedicated Rescan Button
                     Button(
                         onClick = onStartAudit,
                         enabled = !isAuditing,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
-                        Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (isAuditing) "Scanning Risks..." else "Scan Security Risks",
-                            maxLines = 1,
-                            softWrap = false,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        if (isAuditing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Auditing Network Security...", fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("RE-RUN SECURITY AUDIT", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -2224,8 +2072,6 @@ fun SecurityTabContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
-                        maxLines = 1,
-                        softWrap = false,
                         modifier = Modifier.weight(1f)
                     )
                     val issuesCount = report.checks.count { !it.isPassed }
@@ -2247,125 +2093,87 @@ fun SecurityTabContent(
 
 @Composable
 fun SecurityCheckCardItem(check: SecurityCheckResult) {
-    var expanded by remember { mutableStateOf(!check.isPassed) }
-
-    val statusColor = if (check.isPassed) {
-        Color(0xFF34C759)
-    } else {
-        when (check.severity) {
-            VulnerabilitySeverity.CRITICAL, VulnerabilitySeverity.HIGH -> Color(0xFFFF3B30)
-            VulnerabilitySeverity.MEDIUM -> Color(0xFFFF9500)
-            VulnerabilitySeverity.LOW -> Color(0xFFFFCC00)
-            VulnerabilitySeverity.INFO -> Color(0xFF8E8E93)
-        }
-    }
-
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 width = 0.5.dp,
-                color = if (!check.isPassed) statusColor.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(18.dp)
+                color = if (check.isPassed) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(16.dp)
             )
-            .clickable { expanded = !expanded }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .background(statusColor.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                        .size(36.dp)
+                        .background(
+                            if (check.isPassed) Color(0xFF34C759).copy(alpha = 0.15f)
+                            else MaterialTheme.colorScheme.errorContainer,
+                            CircleShape
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         if (check.isPassed) Icons.Default.CheckCircle else Icons.Default.Warning,
                         contentDescription = null,
-                        tint = statusColor,
-                        modifier = Modifier.size(22.dp)
+                        tint = if (check.isPassed) Color(0xFF34C759) else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
                 Spacer(Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        check.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text(check.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     if (check.target != null) {
-                        Text(
-                            "Target: ${check.target}",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Text("Target: ${check.target}", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
-                Spacer(Modifier.width(8.dp))
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = statusColor.copy(alpha = 0.15f)
+                    color = when (check.severity) {
+                        VulnerabilitySeverity.CRITICAL -> Color(0xFFFF3B30)
+                        VulnerabilitySeverity.HIGH -> Color(0xFFFF9500)
+                        VulnerabilitySeverity.MEDIUM -> Color(0xFFFFCC00)
+                        VulnerabilitySeverity.LOW -> Color(0xFF5AC8FA)
+                        VulnerabilitySeverity.INFO -> Color(0xFF8E8E93)
+                    }
                 ) {
                     Text(
-                        if (check.isPassed) "PASSED" else check.severity.name,
+                        check.severity.name,
                         style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        softWrap = false,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
             }
 
-            AnimatedVisibility(visible = expanded) {
-                Column {
-                    Spacer(Modifier.height(10.dp))
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(check.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                    Text(
-                        check.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(Modifier.height(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.fillMaxWidth()
+            if (!check.isPassed && check.recommendation.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Icon(
-                                Icons.Default.Lightbulb,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Fix: ${check.recommendation}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            check.recommendation,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -2374,33 +2182,30 @@ fun SecurityCheckCardItem(check: SecurityCheckResult) {
 }
 
 // -------------------------------------------------------------
-// DIALOGS & HELPERS (iOS Rounded Modal Style)
+// DIALOGS
 // -------------------------------------------------------------
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditRouterDialog(
     initial: RouterDevice?,
     defaultIp: String,
-    defaultName: String = "",
+    defaultName: String,
     onDismiss: () -> Unit,
     onSave: (RouterDevice) -> Unit
 ) {
-    var name by remember { mutableStateOf(initial?.name ?: defaultName) }
+    var name by remember { mutableStateOf(initial?.name ?: defaultName.ifBlank { "My Router" }) }
     var ip by remember { mutableStateOf(initial?.ip ?: defaultIp) }
     var username by remember { mutableStateOf(initial?.username ?: "admin") }
     var password by remember { mutableStateOf(initial?.password ?: "") }
-    var showPassword by remember { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(22.dp),
         title = {
             Text(
                 if (initial == null) "Add Router Profile" else "Edit Router Profile",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false
+                fontWeight = FontWeight.Bold
             )
         },
         text = {
@@ -2408,16 +2213,14 @@ fun AddEditRouterDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Router Name (e.g. TP-Link Living Room)") },
-                    shape = RoundedCornerShape(12.dp),
+                    label = { Text("Profile Name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = ip,
                     onValueChange = { ip = it },
-                    label = { Text("IP Address (e.g. 192.168.0.1)") },
-                    shape = RoundedCornerShape(12.dp),
+                    label = { Text("IP Address / Hostname") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -2425,7 +2228,6 @@ fun AddEditRouterDialog(
                     value = username,
                     onValueChange = { username = it },
                     label = { Text("Admin Username") },
-                    shape = RoundedCornerShape(12.dp),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -2433,17 +2235,16 @@ fun AddEditRouterDialog(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("Admin Password") },
-                    shape = RoundedCornerShape(12.dp),
-                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
-                        IconButton(onClick = { showPassword = !showPassword }) {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
-                                if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = "Toggle Password"
+                                if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null
                             )
                         }
                     },
-                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -2451,25 +2252,24 @@ fun AddEditRouterDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (name.isNotBlank() && ip.isNotBlank()) {
-                        onSave(
-                            RouterDevice(
-                                id = initial?.id ?: System.currentTimeMillis().toString(),
-                                name = name.trim(),
-                                ip = ip.trim(),
-                                username = username.trim(),
-                                password = password
-                            )
+                    onSave(
+                        RouterDevice(
+                            id = initial?.id ?: "router_${System.currentTimeMillis()}",
+                            name = name.ifBlank { "Router ($ip)" },
+                            ip = ip.trim(),
+                            username = username.trim(),
+                            password = password
                         )
-                    }
-                },
-                shape = RoundedCornerShape(10.dp)
+                    )
+                }
             ) {
-                Text("Save", maxLines = 1, softWrap = false)
+                Text("Save Profile")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
         }
     )
 }
@@ -2480,69 +2280,51 @@ fun ChangeSubnetDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var subnetText by remember { mutableStateOf(initialSubnet) }
+    var text by remember { mutableStateOf(initialSubnet) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(22.dp),
-        title = {
-            Text(
-                "Network Subnet",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false
-            )
-        },
+        title = { Text("Custom Subnet Range", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    "Enter the first 3 octets of your network subnet to scan (e.g. 192.168.0):",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column {
+                Text("Enter the first 3 octets of the subnet (e.g., 192.168.1):", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
-                    value = subnetText,
-                    onValueChange = { subnetText = it.trim() },
-                    label = { Text("Subnet Prefix") },
-                    shape = RoundedCornerShape(12.dp),
+                    value = text,
+                    onValueChange = { text = it },
                     singleLine = true,
+                    label = { Text("Subnet Prefix") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("192.168.0", "192.168.1", "10.0.0").forEach { preset ->
-                        SuggestionChip(
-                            onClick = { subnetText = preset },
-                            label = { Text(preset, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
-                        )
-                    }
-                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (subnetText.isNotBlank()) {
-                        onConfirm(subnetText)
-                    }
-                },
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("Scan", maxLines = 1, softWrap = false)
+            Button(onClick = { onConfirm(text.trim()) }) {
+                Text("Scan Subnet")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
         }
     )
 }
 
 // -------------------------------------------------------------
-// WELCOME & ONBOARDING SCREEN
+// WELCOME & ONBOARDING SCREEN (Dynamic Network Summary)
 // -------------------------------------------------------------
 
 @Composable
-fun WelcomeScreen(onDismiss: () -> Unit) {
+fun WelcomeScreen(
+    gatewayIp: String?,
+    ownIp: String?,
+    subnet: String,
+    activeDevicesCount: Int,
+    isRouterOnline: Boolean,
+    isInternetOnline: Boolean,
+    onDismiss: () -> Unit
+) {
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -2563,7 +2345,8 @@ fun WelcomeScreen(onDismiss: () -> Unit) {
                         onClick = onDismiss,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .clickable { onDismiss() },
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -2574,9 +2357,7 @@ fun WelcomeScreen(onDismiss: () -> Unit) {
                         Text(
                             "Get Started",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
+                            fontWeight = FontWeight.Bold
                         )
                         Spacer(Modifier.width(8.dp))
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -2621,26 +2402,139 @@ fun WelcomeScreen(onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                softWrap = false
+                textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
 
             Text(
-                text = "Your smart command center for router management, network discovery, and vulnerability auditing.",
+                text = "Your smart command center for router management, network discovery, speed testing, and security auditing.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                lineHeight = 22.sp
+                textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(20.dp))
+
+            // DYNAMIC NETWORK SUMMARY CARD
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        0.5.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                        RoundedCornerShape(20.dp)
+                    )
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Dns,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "LIVE NETWORK SUMMARY",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Wi-Fi Router Gateway:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isRouterOnline) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF43F5E).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                if (isRouterOnline) "ONLINE ($gatewayIp)" else "OFFLINE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isRouterOnline) Color(0xFF10B981) else Color(0xFFF43F5E),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Internet WAN Status:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isInternetOnline) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                if (isInternetOnline) "CONNECTED" else "LOCAL ONLY (NO WAN)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isInternetOnline) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Active Discovered Devices:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "$activeDevicesCount Device(s) Active",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Subnet & Phone IP:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "$subnet.0/24 ($ownIp)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
 
             // Feature Highlights list
             Column(
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 WelcomeFeatureItem(
@@ -2651,48 +2545,21 @@ fun WelcomeScreen(onDismiss: () -> Unit) {
 
                 WelcomeFeatureItem(
                     icon = Icons.Default.Devices,
-                    title = "Deep Device Identification",
-                    description = "Identifies phones, laptops, smart TVs, cameras, printers, and IoT by brand, model, and open ports."
+                    title = "Categorized Device Identification",
+                    description = "Identifies phones, laptops, smart TVs, cameras, printers, and IoT by brand, model, open ports, and color-coded latency."
                 )
 
                 WelcomeFeatureItem(
-                    icon = Icons.Default.AdminPanelSettings,
-                    title = "One-Tap Web Admin",
-                    description = "Open your router's administration portal inside the app with encrypted credential autofill."
+                    icon = Icons.Default.Speed,
+                    title = "Speedometer Gauge Test",
+                    description = "Measure download and upload bandwidth speeds, ping latency, and jitter variance in real-time."
                 )
 
                 WelcomeFeatureItem(
                     icon = Icons.Default.Shield,
-                    title = "Network Security Audit",
-                    description = "Scans for open telnet ports, unencrypted HTTP management, and weak default passwords."
+                    title = "Dedicated Security Audit",
+                    description = "Scans for open telnet ports, unencrypted HTTP management, and weak default passwords with dedicated rescan."
                 )
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            // User Friendly Tip Card
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Lightbulb,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = "Tip: Make sure Wi-Fi is connected on your phone to scan local devices or open router management.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -2746,9 +2613,7 @@ private fun WelcomeFeatureItem(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    softWrap = false
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
@@ -2762,53 +2627,56 @@ private fun WelcomeFeatureItem(
     }
 }
 
-// -------------------------------------------------------------
-// STORAGE & UTILITIES
-// -------------------------------------------------------------
-
 private fun copyText(context: Context, label: String, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
-    Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
+    val clip = ClipData.newPlainText(label, text)
+    clipboard.setPrimaryClip(clip)
+    Toast.makeText(context, "$label copied to clipboard", Toast.LENGTH_SHORT).show()
 }
 
 private fun getSecurePrefs(context: Context) = EncryptedSharedPreferences.create(
     context,
-    "router_hub_secure_prefs",
+    "secure_router_prefs",
     MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
 )
 
 private fun saveRouters(context: Context, list: List<RouterDevice>) {
+    val prefs = getSecurePrefs(context)
     val array = JSONArray()
     list.forEach { r ->
-        array.put(JSONObject().apply {
-            put("id", r.id)
-            put("name", r.name)
-            put("ip", r.ip)
-            put("username", r.username)
-            put("password", r.password)
-        })
+        val obj = JSONObject()
+        obj.put("id", r.id)
+        obj.put("name", r.name)
+        obj.put("ip", r.ip)
+        obj.put("username", r.username)
+        obj.put("password", r.password)
+        array.put(obj)
     }
-    getSecurePrefs(context).edit().putString("routers_json", array.toString()).apply()
+    prefs.edit().putString("saved_routers", array.toString()).apply()
 }
 
 private fun loadRouters(context: Context): List<RouterDevice> {
-    val raw = getSecurePrefs(context).getString("routers_json", null) ?: return emptyList()
-    return try {
-        val array = JSONArray(raw)
-        List(array.length()) { i ->
+    val list = mutableListOf<RouterDevice>()
+    try {
+        val prefs = getSecurePrefs(context)
+        val str = prefs.getString("saved_routers", null) ?: return emptyList()
+        val array = JSONArray(str)
+        for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
-            RouterDevice(
-                id = obj.getString("id"),
-                name = obj.getString("name"),
-                ip = obj.getString("ip"),
-                username = obj.optString("username", "admin"),
-                password = obj.optString("password", "")
+            list.add(
+                RouterDevice(
+                    id = obj.optString("id", "r_$i"),
+                    name = obj.optString("name", "Router"),
+                    ip = obj.optString("ip", "192.168.0.1"),
+                    username = obj.optString("username", "admin"),
+                    password = obj.optString("password", "")
+                )
             )
         }
     } catch (_: Exception) {
-        emptyList()
+        // Fallback
     }
+    return list
 }

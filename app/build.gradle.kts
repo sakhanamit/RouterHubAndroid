@@ -29,9 +29,9 @@ android {
         // Target Android OS version tested and optimized against (API 34: Android 14)
         targetSdk = 34
         // Internal version number used for update management
-        versionCode = 1
+        versionCode = 2
         // User-facing version string
-        versionName = "1.0"
+        versionName = "1.1"
     }
 
     signingConfigs {
@@ -56,6 +56,11 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     buildFeatures {

@@ -46,6 +46,20 @@ object NetworkScanner {
     }
 
     fun detectGatewayAndIp(context: Context): Pair<String?, String?> {
+        try {
+            val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            val dhcp = wm?.dhcpInfo
+            if (dhcp != null && dhcp.gateway != 0 && dhcp.ipAddress != 0) {
+                val gateway = formatIntToIp(dhcp.gateway)
+                val ownIp = formatIntToIp(dhcp.ipAddress)
+                if (gateway != "0.0.0.0" && ownIp != "0.0.0.0") {
+                    return Pair(gateway, ownIp)
+                }
+            }
+        } catch (_: Exception) {
+            // Fallback to ConnectivityManager LinkProperties
+        }
+
         return try {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val linkProps = cm.getLinkProperties(cm.activeNetwork) ?: return Pair(null, null)
@@ -63,6 +77,10 @@ object NetworkScanner {
         } catch (_: Exception) {
             Pair(null, null)
         }
+    }
+
+    private fun formatIntToIp(ipInt: Int): String {
+        return "${ipInt and 0xFF}.${ipInt shr 8 and 0xFF}.${ipInt shr 16 and 0xFF}.${ipInt shr 24 and 0xFF}"
     }
 
     /**
