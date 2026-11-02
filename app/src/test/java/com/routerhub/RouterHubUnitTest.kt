@@ -7,6 +7,8 @@ import com.routerhub.model.SecurityAuditReport
 import com.routerhub.model.SecurityCheckResult
 import com.routerhub.model.VulnerabilitySeverity
 import com.routerhub.network.NetworkScanner
+import com.routerhub.network.SpeedTestPhase
+import com.routerhub.network.SpeedTestResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -181,4 +183,62 @@ class RouterHubUnitTest {
         assertEquals(2, report.checks.size)
         assertTrue(report.checks.all { it.isPassed })
     }
+
+    @Test
+    fun testSpeedTestResultDefaultsAndTransitions() {
+        val defaultResult = SpeedTestResult()
+        assertEquals(SpeedTestPhase.IDLE, defaultResult.phase)
+        assertEquals(0f, defaultResult.progress, 0.001f)
+        assertEquals(0L, defaultResult.pingMs)
+        assertEquals(0f, defaultResult.currentDownloadMbps, 0.001f)
+        assertEquals(0f, defaultResult.peakDownloadMbps, 0.001f)
+
+        val activeResult = defaultResult.copy(
+            phase = SpeedTestPhase.DOWNLOAD,
+            progress = 0.45f,
+            currentDownloadMbps = 84.5f,
+            peakDownloadMbps = 92.1f,
+            avgDownloadMbps = 86.0f,
+            pingMs = 15L,
+            jitterMs = 2L,
+            downloadBytes = 45_000_000L
+        )
+        assertEquals(SpeedTestPhase.DOWNLOAD, activeResult.phase)
+        assertEquals(0.45f, activeResult.progress, 0.001f)
+        assertEquals(84.5f, activeResult.currentDownloadMbps, 0.001f)
+        assertEquals(92.1f, activeResult.peakDownloadMbps, 0.001f)
+        assertEquals(86.0f, activeResult.avgDownloadMbps, 0.001f)
+        assertEquals(15L, activeResult.pingMs)
+        assertEquals(2L, activeResult.jitterMs)
+        assertEquals(45_000_000L, activeResult.downloadBytes)
+    }
+
+    @Test
+    fun testSpeedTestCompletedMetrics() {
+        val history = listOf(20f, 45f, 65f, 85f, 95f, 98f)
+        val completeResult = SpeedTestResult(
+            phase = SpeedTestPhase.COMPLETE,
+            progress = 1.0f,
+            pingMs = 12L,
+            jitterMs = 1L,
+            currentDownloadMbps = 95f,
+            peakDownloadMbps = 98f,
+            avgDownloadMbps = 95f,
+            currentUploadMbps = 42f,
+            peakUploadMbps = 45f,
+            avgUploadMbps = 42f,
+            downloadBytes = 110_000_000L,
+            uploadBytes = 35_000_000L,
+            speedHistory = history,
+            statusText = "Speed Test Completed Successfully"
+        )
+
+        assertEquals(SpeedTestPhase.COMPLETE, completeResult.phase)
+        assertEquals(1.0f, completeResult.progress, 0.001f)
+        assertTrue(completeResult.peakDownloadMbps >= completeResult.avgDownloadMbps)
+        assertTrue(completeResult.peakUploadMbps >= completeResult.avgUploadMbps)
+        assertEquals(6, completeResult.speedHistory.size)
+        assertEquals(98f, completeResult.speedHistory.maxOrNull() ?: 0f, 0.001f)
+    }
 }
+

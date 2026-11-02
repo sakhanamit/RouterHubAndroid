@@ -184,6 +184,7 @@ fun RouterHubMainScreen() {
     }
 
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showTopMenu by remember { mutableStateOf(false) }
     var isPrivacyMaskEnabled by remember { mutableStateOf(false) }
 
     // Privacy Masking Helpers
@@ -476,11 +477,7 @@ fun RouterHubMainScreen() {
                         )
                     }
 
-                    // Check Updates Button
-                    IconButton(onClick = { showUpdateDialog = true }) {
-                        Icon(Icons.Default.SystemUpdate, contentDescription = "Check App Updates", tint = MaterialTheme.colorScheme.primary)
-                    }
-
+                    // Contextual Action for Current Tab
                     if (selectedTab == 0) {
                         IconButton(onClick = {
                             editingRouter = null
@@ -501,8 +498,17 @@ fun RouterHubMainScreen() {
                                 Icon(Icons.Default.Refresh, contentDescription = "Rescan Routers")
                             }
                         }
+                    } else if (selectedTab == 1) {
+                        IconButton(onClick = { startNetworkScan() }, enabled = !isScanning) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Rescan Devices")
+                        }
+                    } else if (selectedTab == 3) {
+                        IconButton(onClick = { startSecurityAudit() }, enabled = !isAuditing) {
+                            Icon(Icons.Default.Shield, contentDescription = "Run Audit")
+                        }
                     }
 
+                    // Direct Quick Web Portal button when Gateway is detected
                     val currentGateway = gatewayIp
                     if (currentGateway != null) {
                         IconButton(onClick = {
@@ -516,21 +522,36 @@ fun RouterHubMainScreen() {
                         }
                     }
 
-                    if (selectedTab == 1) {
-                        IconButton(onClick = { startNetworkScan() }, enabled = !isScanning) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Rescan Devices")
+                    // Overflow Menu
+                    Box {
+                        IconButton(onClick = { showTopMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More Options")
                         }
-                    } else if (selectedTab == 2) {
-                        IconButton(onClick = { startSpeedTest() }, enabled = !isTestingSpeed) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Run Speed Test")
+                        DropdownMenu(
+                            expanded = showTopMenu,
+                            onDismissRequest = { showTopMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Check App Updates") },
+                                onClick = {
+                                    showTopMenu = false
+                                    showUpdateDialog = true
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Welcome & Guide") },
+                                onClick = {
+                                    showTopMenu = false
+                                    showWelcomeScreen = true
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null)
+                                }
+                            )
                         }
-                    } else if (selectedTab == 3) {
-                        IconButton(onClick = { startSecurityAudit() }, enabled = !isAuditing) {
-                            Icon(Icons.Default.Shield, contentDescription = "Run Audit")
-                        }
-                    }
-                    IconButton(onClick = { showWelcomeScreen = true }) {
-                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -639,32 +660,13 @@ fun RouterHubMainScreen() {
                         }
                     }
                 }
-                2 -> {
-                    FloatingActionButton(
-                        onClick = { startSpeedTest() },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape,
-                        modifier = Modifier.size(46.dp)
-                    ) {
-                        if (isTestingSpeed) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        } else {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Test Speed", modifier = Modifier.size(22.dp))
-                        }
-                    }
-                }
                 3 -> {
                     FloatingActionButton(
                         onClick = { startSecurityAudit() },
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                         shape = CircleShape,
-                        modifier = Modifier.size(46.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         if (isAuditing) {
                             CircularProgressIndicator(
@@ -677,6 +679,7 @@ fun RouterHubMainScreen() {
                         }
                     }
                 }
+                else -> {}
             }
         }
     ) { padding ->
@@ -685,100 +688,106 @@ fun RouterHubMainScreen() {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            when (selectedTab) {
-                0 -> {
-                    RoutersTabContent(
-                        gatewayIp = gatewayIp,
-                        routers = routers,
-                        discoveredRouters = discoveredRouters,
-                        isSearchingRouters = isSearchingRouters,
-                        searchQuery = routerSearchQuery,
-                        maskIp = ::maskIp,
-                        onSearchQueryChange = { routerSearchQuery = it },
-                        onRefreshRouters = { startRouterSearch() },
-                        onCheckUpdate = { showUpdateDialog = true },
-                        onOpenRouter = { router -> activeRouter = router },
-                        onEditRouter = { router ->
-                            editingRouter = router
-                            prefillIp = router.ip
-                            prefillName = router.name
-                            showAddDialog = true
-                        },
-                        onDeleteRouter = { router ->
-                            routers = routers.filterNot { it.id == router.id }
-                            saveRouters(context, routers)
-                        },
-                        onSaveGateway = { ip ->
-                            editingRouter = null
-                            prefillIp = ip
-                            prefillName = "Primary Gateway"
-                            showAddDialog = true
-                        },
-                        onAddDiscoveredRouter = { device ->
-                            editingRouter = null
-                            prefillIp = device.ip
-                            prefillName = when {
-                                !device.httpTitle.isNullOrBlank() -> device.httpTitle
-                                device.isGateway -> "Primary Gateway"
-                                !device.vendor.isNullOrBlank() && device.vendor != "Unknown" -> "${device.vendor} Router"
-                                else -> "Router (${maskIp(device.ip)})"
+            Crossfade(
+                targetState = selectedTab,
+                animationSpec = tween(durationMillis = 200),
+                label = "TabTransition"
+            ) { tab ->
+                when (tab) {
+                    0 -> {
+                        RoutersTabContent(
+                            gatewayIp = gatewayIp,
+                            routers = routers,
+                            discoveredRouters = discoveredRouters,
+                            isSearchingRouters = isSearchingRouters,
+                            searchQuery = routerSearchQuery,
+                            maskIp = ::maskIp,
+                            onSearchQueryChange = { routerSearchQuery = it },
+                            onRefreshRouters = { startRouterSearch() },
+                            onCheckUpdate = { showUpdateDialog = true },
+                            onOpenRouter = { router -> activeRouter = router },
+                            onEditRouter = { router ->
+                                editingRouter = router
+                                prefillIp = router.ip
+                                prefillName = router.name
+                                showAddDialog = true
+                            },
+                            onDeleteRouter = { router ->
+                                routers = routers.filterNot { it.id == router.id }
+                                saveRouters(context, routers)
+                            },
+                            onSaveGateway = { ip ->
+                                editingRouter = null
+                                prefillIp = ip
+                                prefillName = "Primary Gateway"
+                                showAddDialog = true
+                            },
+                            onAddDiscoveredRouter = { device ->
+                                editingRouter = null
+                                prefillIp = device.ip
+                                prefillName = when {
+                                    !device.httpTitle.isNullOrBlank() -> device.httpTitle
+                                    device.isGateway -> "Primary Gateway"
+                                    !device.vendor.isNullOrBlank() && device.vendor != "Unknown" -> "${device.vendor} Router"
+                                    else -> "Router (${maskIp(device.ip)})"
+                                }
+                                showAddDialog = true
+                            },
+                            onSwitchToScanner = { selectedTab = 1 },
+                            onAddNewRouter = {
+                                editingRouter = null
+                                prefillIp = gatewayIp ?: "192.168.0.1"
+                                prefillName = ""
+                                showAddDialog = true
                             }
-                            showAddDialog = true
-                        },
-                        onSwitchToScanner = { selectedTab = 1 },
-                        onAddNewRouter = {
-                            editingRouter = null
-                            prefillIp = gatewayIp ?: "192.168.0.1"
-                            prefillName = ""
-                            showAddDialog = true
-                        }
-                    )
-                }
-                1 -> {
-                    ScannerTabContent(
-                        currentSubnet = currentSubnet,
-                        gatewayIp = gatewayIp,
-                        ownIp = ownIp,
-                        devices = scannedDevices,
-                        isScanning = isScanning,
-                        scanProgress = scanProgress,
-                        statusText = scanCountText,
-                        searchQuery = deviceSearchQuery,
-                        maskIp = ::maskIp,
-                        maskMac = ::maskMac,
-                        onSearchQueryChange = { deviceSearchQuery = it },
-                        selectedFilter = selectedFilter,
-                        onFilterSelect = { selectedFilter = it },
-                        onChangeSubnetClick = { showSubnetDialog = true },
-                        onOpenDeviceWeb = { ip ->
-                            activeRouter = RouterDevice(
-                                id = "discovered_${System.currentTimeMillis()}",
-                                name = "Device Web (${maskIp(ip)})",
-                                ip = ip
-                            )
-                        },
-                        onSaveDeviceAsRouter = { device ->
-                            editingRouter = null
-                            prefillIp = device.ip
-                            showAddDialog = true
-                        }
-                    )
-                }
-                2 -> {
-                    SpeedTestScreen(
-                        result = speedTestResult,
-                        isRunning = isTestingSpeed,
-                        onStartTest = { startSpeedTest() }
-                    )
-                }
-                3 -> {
-                    SecurityTabContent(
-                        report = securityReport,
-                        isAuditing = isAuditing,
-                        progress = auditProgress,
-                        statusText = auditStatusText,
-                        onStartAudit = { startSecurityAudit() }
-                    )
+                        )
+                    }
+                    1 -> {
+                        ScannerTabContent(
+                            currentSubnet = currentSubnet,
+                            gatewayIp = gatewayIp,
+                            ownIp = ownIp,
+                            devices = scannedDevices,
+                            isScanning = isScanning,
+                            scanProgress = scanProgress,
+                            statusText = scanCountText,
+                            searchQuery = deviceSearchQuery,
+                            maskIp = ::maskIp,
+                            maskMac = ::maskMac,
+                            onSearchQueryChange = { deviceSearchQuery = it },
+                            selectedFilter = selectedFilter,
+                            onFilterSelect = { selectedFilter = it },
+                            onChangeSubnetClick = { showSubnetDialog = true },
+                            onOpenDeviceWeb = { ip ->
+                                activeRouter = RouterDevice(
+                                    id = "discovered_${System.currentTimeMillis()}",
+                                    name = "Device Web (${maskIp(ip)})",
+                                    ip = ip
+                                )
+                            },
+                            onSaveDeviceAsRouter = { device ->
+                                editingRouter = null
+                                prefillIp = device.ip
+                                showAddDialog = true
+                            }
+                        )
+                    }
+                    2 -> {
+                        SpeedTestScreen(
+                            result = speedTestResult,
+                            isRunning = isTestingSpeed,
+                            onStartTest = { startSpeedTest() }
+                        )
+                    }
+                    3 -> {
+                        SecurityTabContent(
+                            report = securityReport,
+                            isAuditing = isAuditing,
+                            progress = auditProgress,
+                            statusText = auditStatusText,
+                            onStartAudit = { startSecurityAudit() }
+                        )
+                    }
                 }
             }
         }
@@ -797,7 +806,7 @@ fun RouterHubMainScreen() {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Installed Version: v1.1 (Build 2)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text("Installed Version: v1.2 (Build 3)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                     Text("Check for the latest release, changelogs, and APK downloads on our official GitHub Pages site.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
                     Surface(

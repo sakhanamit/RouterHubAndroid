@@ -5,23 +5,23 @@
 ### *The Ultimate Modern Network Administrator & Security Companion for Android*
 
 [![Live Webpage](https://img.shields.io/badge/🌐_Website-Live_Landing_Page-6366f1?style=for-the-badge)](https://sakhanamit.github.io/RouterHubAndroid/)
-[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.1.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-release.apk)
+[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.2.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-release.apk)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid)
-[![Latest Release](https://img.shields.io/badge/Release-v1.1.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v1.2.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
 [![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
 <br/>
 
-### 🚀 **Quick Download Links (v1.1.0)**
+### 🚀 **Quick Download Links (v1.2.0)**
 
 | Package | Direct Download Link | Description | Size |
 | :--- | :--- | :--- | :---: |
-| 🟢 **Release APK** | [**📥 Download RouterHub-v1.1-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-release.apk) | Production Release Build | ~11.4 MB |
-| 🔵 **Debug APK** | [**📥 Download RouterHub-v1.1-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-debug.apk) | Standalone Debug Build | ~16.4 MB |
+| 🟢 **Release APK** | [**📥 Download RouterHub-v1.2-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-release.apk) | Production Release Build | ~11.4 MB |
+| 🔵 **Debug APK** | [**📥 Download RouterHub-v1.2-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-debug.apk) | Standalone Debug Build | ~16.4 MB |
 | 🌐 **Live Webpage** | [**Visit Webpage**](https://sakhanamit.github.io/RouterHubAndroid/) | Interactive Demo & Documentation | -- |
-| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.1.0 Changelog | -- |
+| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.2.0 Changelog | -- |
 
 </div>
 
@@ -35,10 +35,20 @@ Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Mate
 
 ---
 
+## 🆕 What's New in v1.2.0
+
+* ⚡ **Accurate Multi-Stream Speed Test:** Resolved premature ~5s termination. Implemented full-duration TCP saturation (10s multi-stream download, 8s upload, 1.5–2s latency/jitter test) using Cloudflare Anycast edge servers with FCC/Ookla warm-up filtering.
+* 📈 **Live Throughput Wave (Sparkline):** Real-time stream chart showing live speed fluctuations with gradient fill.
+* 🎯 **Dynamic Adaptive Speedometer:** Gauge scale automatically scales (100, 250, 500, or 1000 Mbps) with radial graduation ticks, glowing pointer, and tabular digital readouts.
+* 🎬 **Network Capability Assessment:** Automatic verdict for 4K/8K Video Streaming, Low-Latency Gaming, HD Video Conferencing, and Cloud Backups.
+* ✨ **Silky Smooth Navigation:** Added Compose `Crossfade` transitions across tabs and streamlined top app bar with overflow menu.
+
+---
+
 ## 📥 Direct Download & Installation Guide
 
 ### Option 1: Direct APK Download
-1. Click [**Download RouterHub-v1.1-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.1-release.apk) to get the latest APK.
+1. Click [**Download RouterHub-v1.2-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-release.apk) to get the latest APK.
 2. Transfer or open the file on your Android device (Android 8.0+ / API 26+).
 3. Enable **"Install from Unknown Sources"** if prompted by Android.
 4. Tap install and launch **RouterHub**!
@@ -57,7 +67,7 @@ flowchart TD
         B --> C1[Router Management Hub]
         B --> C2[Subnet Coroutine Scanner]
         B --> C3[Security Audit Engine]
-        B --> C4[Google Speed Test Service]
+        B --> C4[Anycast Multi-Stream Speed Test]
     end
 
     subgraph Security & Storage
@@ -86,7 +96,7 @@ flowchart TD
 | 📡 **Smart Gateway Discovery** | ✅ Instant Auto-Detect & Dynamic Polling | ❌ Manual IP Entry |
 | 🔐 **Encrypted Credentials Store** | ✅ Hardware AES-256 GCM | ❌ Plaintext / None |
 | ⚡ **Subnet Coroutine Sweep** | ✅ Categorized Devices + Protocol Badges | ⚠️ Slow / Uncategorized |
-| 🚀 **Google Speedometer Test** | ✅ Real-time Down/Up Mbps + Gauge | ❌ None / Basic Ping |
+| 🚀 **High-Speed Anycast Speed Test** | ✅ Multi-Stream 10s Saturation + Live Wave | ❌ None / Basic Ping |
 | 🛡️ **Automated Security Audit** | ✅ 0–100 Rating + Dedicated Rescan | ❌ Basic Ping Only |
 | 🔒 **100% On-Device & Privacy Masking** | ✅ Zero Analytics + IP/MAC Masking | ❌ Cloud Telemetry |
 
@@ -120,12 +130,14 @@ flowchart TD
 </details>
 
 <details font-size="16px">
-<summary><b>🚀 3. Google Speedometer Test Service</b> (Click to Expand)</summary>
+<summary><b>🚀 3. Anycast Multi-Stream Speedometer Test</b> (Click to Expand)</summary>
 
 <br/>
 
-* **Google Measurement CDN:** High-bandwidth speed test engine powered by Google CDN servers (`dl.google.com`, `storage.googleapis.com`, `dns.google`).
-* **Speedometer Gauge UI:** Semi-circular progress arc with animated needle, download/upload Mbps metrics, ping latency, and jitter.
+* **Cloudflare Anycast CDN:** High-bandwidth speed test engine powered by Cloudflare Anycast global edge servers (`speed.cloudflare.com`).
+* **Continuous Multi-Stream Saturation:** Parallel coroutine download workers continuously streaming chunks for true TCP saturation over a full 10-second download and 8-second upload window.
+* **Dynamic Adaptive Speedometer:** Radial graduation ticks with automatic scale switching (100, 250, 500, 1000 Mbps).
+* **Live Throughput Wave & Capabilities:** Real-time sparkline speed curve and automated streaming/gaming/video call quality verdicts.
 * **Zero-Allocation Memory Engine:** Static buffer reuse (`REUSABLE_BUFFER`), eliminating Garbage Collection overhead and OutOfMemory crashes.
 </details>
 

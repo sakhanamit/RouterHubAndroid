@@ -29,9 +29,9 @@ android {
         // Target Android OS version tested and optimized against (API 34: Android 14)
         targetSdk = 34
         // Internal version number used for update management
-        versionCode = 2
+        versionCode = 3
         // User-facing version string
-        versionName = "1.1"
+        versionName = "1.2"
     }
 
     signingConfigs {
