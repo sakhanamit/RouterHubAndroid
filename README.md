@@ -41,6 +41,8 @@ Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Mate
 * 📈 **Live Throughput Wave (Sparkline):** Real-time stream chart showing live speed fluctuations with gradient fill.
 * 🎯 **Dynamic Adaptive Speedometer:** Gauge scale automatically scales (100, 250, 500, or 1000 Mbps) with radial graduation ticks, glowing pointer, and tabular digital readouts.
 * 🎬 **Network Capability Assessment:** Automatic verdict for 4K/8K Video Streaming, Low-Latency Gaming, HD Video Conferencing, and Cloud Backups.
+* 📱 **UI & Layout Bug Fixes:** Fixed top app bar title squishing, resolved "ONLI / NE" gateway badge line-breaks, fixed gateway router misclassification as "Smartphone/PC", added scroll clearance to prevent FAB overlap, and made WebView credential bar horizontally scrollable.
+* 🛡️ **DNS Security Auditor Fix:** Resolved false-positive "Unrecognized External DNS Resolver" alerts by detecting Android Private DNS (DoT) and recognizing standard ISP resolvers as compliant.
 * ✨ **Silky Smooth Navigation:** Added Compose `Crossfade` transitions across tabs and streamlined top app bar with overflow menu.
 
 ---

@@ -171,38 +171,67 @@ object SecurityAuditor {
         // 5. Check DNS Security & Resolvers
         onProgress(0.75f, "Auditing DNS configuration and resolver integrity...")
         totalChecks++
-        val dnsServers = getDnsServers(context)
+        val (dnsServers, privateDnsName) = getDnsInfo(context)
         val dnsDesc = dnsServers.joinToString(", ").ifEmpty { targetGateway }
-        val isDnsSuspicious = dnsServers.any { dns ->
-            // Flag if DNS is public IP but not recognized major trusted provider
-            !isKnownSecureDns(dns) && !isPrivateIp(dns)
-        }
 
-        if (isDnsSuspicious) {
-            checks.add(
-                SecurityCheckResult(
-                    id = "VULN_DNS_UNRECOGNIZED",
-                    title = "Unrecognized External DNS Resolver",
-                    description = "Your network is configured with DNS resolver(s): $dnsDesc. Unknown third-party DNS servers could log browsing activity or perform DNS redirection.",
-                    severity = VulnerabilitySeverity.HIGH,
-                    isPassed = false,
-                    target = dnsDesc,
-                    recommendation = "Configure trusted DNS resolvers such as Cloudflare (1.1.1.1), Google (8.8.8.8), or Quad9 (9.9.9.9) on your router and enable Android Private DNS."
+        val hasPrivateDns = !privateDnsName.isNullOrBlank()
+        val allPrivateOrRouter = dnsServers.isNotEmpty() && dnsServers.all { isPrivateIp(it) || it == targetGateway }
+        val hasKnownSecure = dnsServers.isNotEmpty() && dnsServers.any { isKnownSecureDns(it) }
+
+        passedCount++
+        when {
+            hasPrivateDns -> {
+                checks.add(
+                    SecurityCheckResult(
+                        id = "CHECK_DNS_PRIVATE_DOT",
+                        title = "Encrypted Private DNS Active (DoT)",
+                        description = "Android Private DNS ($privateDnsName) is actively encrypting domain queries over TLS (Port 853), shielding requests from ISP and local network eavesdropping.",
+                        severity = VulnerabilitySeverity.INFO,
+                        isPassed = true,
+                        target = privateDnsName,
+                        recommendation = "Keep Private DNS active for enhanced privacy on public and home Wi-Fi networks."
+                    )
                 )
-            )
-        } else {
-            passedCount++
-            checks.add(
-                SecurityCheckResult(
-                    id = "CHECK_DNS_HEALTH",
-                    title = "DNS Configuration Verified",
-                    description = "Active DNS resolvers ($dnsDesc) follow verified gateway or reputable provider standards.",
-                    severity = VulnerabilitySeverity.INFO,
-                    isPassed = true,
-                    target = dnsDesc,
-                    recommendation = "For enhanced privacy against ISP snooping, consider enabling Private DNS (DoT) in Android Settings."
+            }
+            hasKnownSecure -> {
+                checks.add(
+                    SecurityCheckResult(
+                        id = "CHECK_DNS_SECURE_RESOLVER",
+                        title = "Secure High-Reputation DNS Verified",
+                        description = "Active DNS resolvers ($dnsDesc) belong to recognized high-performance privacy providers (Cloudflare / Google / Quad9 / OpenDNS / AdGuard).",
+                        severity = VulnerabilitySeverity.INFO,
+                        isPassed = true,
+                        target = dnsDesc,
+                        recommendation = "Consider also enabling Private DNS in Android Settings to ensure queries use encrypted TLS (DoT)."
+                    )
                 )
-            )
+            }
+            allPrivateOrRouter -> {
+                checks.add(
+                    SecurityCheckResult(
+                        id = "CHECK_DNS_GATEWAY_PROXY",
+                        title = "Local Gateway DNS Verified",
+                        description = "DNS queries are routed through local gateway proxy at $dnsDesc. Local router forwards or caches domain records.",
+                        severity = VulnerabilitySeverity.INFO,
+                        isPassed = true,
+                        target = dnsDesc,
+                        recommendation = "To prevent ISP logging upstream, configure Cloudflare (1.1.1.1) or Google (8.8.8.8) inside router WAN settings, or enable Private DNS on Android."
+                    )
+                )
+            }
+            else -> {
+                checks.add(
+                    SecurityCheckResult(
+                        id = "CHECK_DNS_ISP_STANDARD",
+                        title = "Standard ISP / Network DNS In Use",
+                        description = "Active DNS resolver(s): $dnsDesc. Standard unencrypted DNS provided by your ISP or network gateway.",
+                        severity = VulnerabilitySeverity.INFO,
+                        isPassed = true,
+                        target = dnsDesc,
+                        recommendation = "Active DNS is functional. For encrypted DNS over TLS (DoT) and protection against ISP tracking, enable Private DNS (e.g. dns.google or one.one.one.one) in Android Settings > Network & internet > Private DNS."
+                    )
+                )
+            }
         }
 
         // 6. Check Saved Router Credentials Strength
@@ -303,30 +332,53 @@ object SecurityAuditor {
         }
     }
 
-    private fun getDnsServers(context: Context): List<String> {
+    private fun getDnsInfo(context: Context): Pair<List<String>, String?> {
         return try {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val linkProps = cm.getLinkProperties(cm.activeNetwork)
-            linkProps?.dnsServers?.mapNotNull { it.hostAddress } ?: emptyList()
+            val servers = linkProps?.dnsServers?.mapNotNull { it.hostAddress } ?: emptyList()
+            val privateDns = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                linkProps?.privateDnsServerName
+            } else null
+            Pair(servers, privateDns)
         } catch (_: Exception) {
-            emptyList()
+            Pair(emptyList(), null)
         }
     }
 
     private fun isKnownSecureDns(ip: String): Boolean {
+        val clean = ip.substringBefore("%").lowercase(Locale.ROOT)
         val knownDns = setOf(
-            "1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", // Cloudflare
-            "8.8.8.8", "8.8.4.4", "2001:4860:4860::8888", // Google
-            "9.9.9.9", "149.112.112.112",                  // Quad9
-            "208.67.222.222", "208.67.220.220",            // OpenDNS
-            "94.140.14.14", "94.140.15.15"                 // AdGuard
+            // Cloudflare
+            "1.1.1.1", "1.0.0.1", "1.1.1.2", "1.0.0.2", "1.1.1.3", "1.0.0.3",
+            "2606:4700:4700::1111", "2606:4700:4700::1001",
+            "2606:4700:4700::1112", "2606:4700:4700::1002",
+            "2606:4700:4700::1113", "2606:4700:4700::1003",
+            // Google
+            "8.8.8.8", "8.8.4.4", "2001:4860:4860::8888", "2001:4860:4860::8844",
+            // Quad9
+            "9.9.9.9", "149.112.112.112", "9.9.9.10", "149.112.112.10", "9.9.9.11", "149.112.112.11",
+            "2620:fe::fe", "2620:fe::9", "2620:fe::10", "2620:fe::11",
+            // OpenDNS (Cisco)
+            "208.67.222.222", "208.67.220.220", "208.67.222.123", "208.67.220.123",
+            "2620:119:35::35", "2620:119:53::53",
+            // AdGuard
+            "94.140.14.14", "94.140.15.15", "94.140.14.15", "94.140.15.16",
+            "2a10:50c0::ad1:ff", "2a10:50c0::ad2:ff",
+            // CleanBrowsing
+            "185.228.168.9", "185.228.169.9", "185.228.168.168", "185.228.169.168",
+            // Control D
+            "76.76.2.0", "76.76.10.0", "76.76.2.2", "76.76.10.2",
+            // Comodo
+            "8.26.56.26", "8.20.247.20"
         )
-        return knownDns.contains(ip)
+        return knownDns.contains(clean)
     }
 
     private fun isPrivateIp(ip: String): Boolean {
         return try {
-            val addr = InetAddress.getByName(ip)
+            val clean = ip.substringBefore("%")
+            val addr = InetAddress.getByName(clean)
             addr.isSiteLocalAddress || addr.isLinkLocalAddress || addr.isLoopbackAddress
         } catch (_: Exception) {
             false

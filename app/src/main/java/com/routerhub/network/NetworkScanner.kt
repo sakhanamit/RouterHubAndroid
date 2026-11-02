@@ -109,7 +109,7 @@ object NetworkScanner {
         return arpMap
     }
 
-    fun lookupVendor(mac: String?): String {
+    fun lookupVendor(mac: String?, isGateway: Boolean = false): String {
         if (mac.isNullOrBlank()) return "Unknown"
         val cleanMac = mac.replace(":", "").replace("-", "").uppercase(Locale.ROOT)
         if (cleanMac.length < 6) return "Unknown"
@@ -272,6 +272,7 @@ object NetworkScanner {
 
         return when {
             knownVendor != null -> knownVendor
+            isGateway -> "Gateway Router"
             isRandomized -> "Smartphone / PC (Private MAC)"
             else -> "Network Client"
         }
@@ -295,7 +296,11 @@ object NetworkScanner {
             return Pair(b, m)
         }
 
-        val cleanVendor = vendor ?: "Unknown"
+        val cleanVendor = if (isGateway && (vendor == null || vendor.contains("Private MAC") || vendor == "Unknown")) {
+            "Gateway Router"
+        } else {
+            vendor ?: "Unknown"
+        }
         val lowerHost = (hostname ?: "").lowercase(Locale.ROOT)
         val lowerTitle = (httpTitle ?: "").lowercase(Locale.ROOT)
 
@@ -477,7 +482,7 @@ object NetworkScanner {
         } else null
 
         // 6. Vendor & Device Classification
-        val vendor = lookupVendor(mac)
+        val vendor = lookupVendor(mac, isGateway)
         val deviceType = classifyDevice(
             isGateway = isGateway,
             isThisDevice = isThisDevice,

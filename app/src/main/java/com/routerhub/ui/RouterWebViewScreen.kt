@@ -22,7 +22,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -152,8 +154,12 @@ fun RouterWebViewScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val credentialScrollState = rememberScrollState()
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(credentialScrollState)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -165,30 +171,34 @@ fun RouterWebViewScreen(
                         Spacer(Modifier.width(6.dp))
                         Text(
                             "Credentials:",
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Spacer(Modifier.weight(1f))
+                        Spacer(Modifier.width(8.dp))
 
                         if (router.username.isNotBlank()) {
                             AssistChip(
                                 onClick = { copyToClipboard(context, "Username", router.username) },
-                                label = { Text("Copy User") }
+                                label = { Text("Copy User", maxLines = 1, softWrap = false) }
                             )
+                            Spacer(Modifier.width(6.dp))
                         }
-                        Spacer(Modifier.width(6.dp))
                         if (router.password.isNotBlank()) {
                             AssistChip(
                                 onClick = { copyToClipboard(context, "Password", router.password) },
-                                label = { Text("Copy Pass") }
+                                label = { Text("Copy Pass", maxLines = 1, softWrap = false) }
                             )
+                            Spacer(Modifier.width(6.dp))
                         }
-                        Spacer(Modifier.width(6.dp))
                         FilledTonalButton(
                             onClick = { webViewRef?.let { injectAutoLogin(it, router) } },
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("Fill", style = MaterialTheme.typography.labelSmall)
+                            Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Fill", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                         }
                     }
                 }

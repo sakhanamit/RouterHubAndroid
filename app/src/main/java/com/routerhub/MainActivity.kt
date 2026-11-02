@@ -439,7 +439,10 @@ fun RouterHubMainScreen() {
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_logo),
                             contentDescription = "Router Hub Logo",
@@ -448,67 +451,31 @@ fun RouterHubMainScreen() {
                                 .clip(RoundedCornerShape(9.dp))
                         )
                         Spacer(Modifier.width(10.dp))
-                        Column {
+                        Column(
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
                             Text(
                                 "Router Hub",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 softWrap = false
                             )
                             Text(
-                                text = if (gatewayIp != null) "Router (Online): ${maskIp(gatewayIp!!)}" else "Wi-Fi: Connected",
+                                text = if (gatewayIp != null) "Router: ${maskIp(gatewayIp!!)}" else "Wi-Fi: Connected",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 softWrap = false
                             )
                         }
                     }
                 },
                 actions = {
-                    // Privacy Masking Toggle
-                    IconButton(onClick = { isPrivacyMaskEnabled = !isPrivacyMaskEnabled }) {
-                        Icon(
-                            if (isPrivacyMaskEnabled) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "Toggle Privacy Masking",
-                            tint = if (isPrivacyMaskEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Contextual Action for Current Tab
-                    if (selectedTab == 0) {
-                        IconButton(onClick = {
-                            editingRouter = null
-                            prefillIp = gatewayIp ?: "192.168.0.1"
-                            prefillName = ""
-                            showAddDialog = true
-                        }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Router")
-                        }
-                        IconButton(onClick = { startRouterSearch() }, enabled = !isSearchingRouters) {
-                            if (isSearchingRouters) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } else {
-                                Icon(Icons.Default.Refresh, contentDescription = "Rescan Routers")
-                            }
-                        }
-                    } else if (selectedTab == 1) {
-                        IconButton(onClick = { startNetworkScan() }, enabled = !isScanning) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Rescan Devices")
-                        }
-                    } else if (selectedTab == 3) {
-                        IconButton(onClick = { startSecurityAudit() }, enabled = !isAuditing) {
-                            Icon(Icons.Default.Shield, contentDescription = "Run Audit")
-                        }
-                    }
-
-                    // Direct Quick Web Portal button when Gateway is detected
+                    // Quick Action: Web Portal when Gateway is detected, OR Add Router on Tab 0
                     val currentGateway = gatewayIp
                     if (currentGateway != null) {
                         IconButton(onClick = {
@@ -518,11 +485,20 @@ fun RouterHubMainScreen() {
                                 ip = currentGateway
                             )
                         }) {
-                            Icon(Icons.Default.Language, contentDescription = "Open Router Web")
+                            Icon(Icons.Default.Language, contentDescription = "Open Router Web", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    } else if (selectedTab == 0) {
+                        IconButton(onClick = {
+                            editingRouter = null
+                            prefillIp = "192.168.0.1"
+                            prefillName = ""
+                            showAddDialog = true
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Add Router")
                         }
                     }
 
-                    // Overflow Menu
+                    // 3-Dot Overflow Menu (cleanly houses all secondary actions to keep title un-squished)
                     Box {
                         IconButton(onClick = { showTopMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More Options")
@@ -531,6 +507,45 @@ fun RouterHubMainScreen() {
                             expanded = showTopMenu,
                             onDismissRequest = { showTopMenu = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(if (isPrivacyMaskEnabled) "Privacy Masking (Active)" else "Privacy Masking (Off)") },
+                                onClick = {
+                                    isPrivacyMaskEnabled = !isPrivacyMaskEnabled
+                                    showTopMenu = false
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        if (isPrivacyMaskEnabled) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = if (isPrivacyMaskEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            )
+                            if (selectedTab == 0) {
+                                DropdownMenuItem(
+                                    text = { Text("Add Router Profile") },
+                                    onClick = {
+                                        showTopMenu = false
+                                        editingRouter = null
+                                        prefillIp = gatewayIp ?: "192.168.0.1"
+                                        prefillName = ""
+                                        showAddDialog = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Add, contentDescription = null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Rescan Local Routers") },
+                                    onClick = {
+                                        showTopMenu = false
+                                        startRouterSearch()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Refresh, contentDescription = null)
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Check App Updates") },
                                 onClick = {
@@ -657,25 +672,6 @@ fun RouterHubMainScreen() {
                             )
                         } else {
                             Icon(Icons.Default.Radar, contentDescription = "Scan Devices", modifier = Modifier.size(22.dp))
-                        }
-                    }
-                }
-                3 -> {
-                    FloatingActionButton(
-                        onClick = { startSecurityAudit() },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        if (isAuditing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        } else {
-                            Icon(Icons.Default.Shield, contentDescription = "Audit Network", modifier = Modifier.size(22.dp))
                         }
                     }
                 }
@@ -925,7 +921,7 @@ fun RoutersTabContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp)
+        contentPadding = PaddingValues(top = 10.dp, bottom = 120.dp)
     ) {
         // Active Gateway Banner Card
         item {
@@ -975,7 +971,9 @@ fun RoutersTabContent(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 maxLines = 1,
-                                softWrap = false
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(Modifier.width(8.dp))
                             Surface(
@@ -987,18 +985,21 @@ fun RoutersTabContent(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text = if (gatewayIp != null) "IP Address: ${maskIp(gatewayIp)}" else "Wi-Fi Gateway Not Found",
+                            text = if (gatewayIp != null) "IP: ${maskIp(gatewayIp)}" else "Wi-Fi Gateway Not Found",
                             style = MaterialTheme.typography.bodyMedium,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                             maxLines = 1,
-                            softWrap = false
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -1100,16 +1101,26 @@ fun RoutersTabContent(
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
+                            val title = when {
+                                device.isGateway -> device.httpTitle ?: "Primary Gateway Router"
+                                !device.httpTitle.isNullOrBlank() -> device.httpTitle
+                                !device.vendor.isNullOrBlank() && !device.vendor.contains("Smartphone", ignoreCase = true) -> device.vendor
+                                else -> "Router Host"
+                            }
                             Text(
-                                text = device.httpTitle ?: device.vendor ?: "Router Host",
+                                text = title,
                                 style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "IP: ${maskIp(device.ip)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         OutlinedButton(
@@ -1287,7 +1298,7 @@ fun ScannerTabContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp)
+        contentPadding = PaddingValues(top = 10.dp, bottom = 120.dp)
     ) {
         // Subnet Overview Card
         item {
@@ -1328,23 +1339,24 @@ fun ScannerTabContent(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "Gateway: ${if (gatewayIp != null) maskIp(gatewayIp) else "N/A"}  •  Phone: ${if (ownIp != null) maskIp(ownIp) else "N/A"}",
+                                "GW: ${if (gatewayIp != null) maskIp(gatewayIp) else "N/A"} • IP: ${if (ownIp != null) maskIp(ownIp) else "N/A"}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                        OutlinedButton(
+                        Spacer(Modifier.width(8.dp))
+                        FilledTonalButton(
                             onClick = onChangeSubnetClick,
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            modifier = Modifier.height(34.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp)
                         ) {
-                            Text("Subnet", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                            Text("Edit", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                         }
                     }
 
@@ -1630,7 +1642,7 @@ fun IOSDeviceCardItem(
 
                 Column(modifier = Modifier.weight(1f)) {
                     val modelName = when {
-                        device.isGateway -> device.model ?: device.httpTitle ?: "Router Gateway"
+                        device.isGateway -> device.model ?: device.httpTitle ?: "Primary Gateway Router"
                         device.isThisDevice -> "This Device (${Build.MODEL})"
                         device.model != null -> device.model
                         device.httpTitle != null -> device.httpTitle
@@ -1638,7 +1650,16 @@ fun IOSDeviceCardItem(
                         device.vendor != null && device.vendor != "Network Client" -> device.vendor
                         else -> "Network Device"
                     }
-                    val brandName = device.brand ?: device.vendor
+                    val brandName = if (device.isGateway && (
+                        device.brand?.contains("Private MAC", ignoreCase = true) == true ||
+                        device.vendor?.contains("Private MAC", ignoreCase = true) == true ||
+                        device.brand?.contains("Smartphone", ignoreCase = true) == true ||
+                        device.vendor?.contains("Smartphone", ignoreCase = true) == true
+                    )) {
+                        null
+                    } else {
+                        device.brand ?: device.vendor
+                    }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -1664,7 +1685,7 @@ fun IOSDeviceCardItem(
                                 )
                             }
                         }
-                        if (brandName != null && brandName != "Network Client" && brandName != modelName) {
+                        if (brandName != null && brandName != "Network Client" && brandName != modelName && !(device.isGateway && (brandName.contains("Smartphone", ignoreCase = true) || brandName.contains("PC", ignoreCase = true)))) {
                             Spacer(Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -1862,7 +1883,7 @@ fun SecurityTabContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 10.dp, bottom = 100.dp)
+        contentPadding = PaddingValues(top = 10.dp, bottom = 120.dp)
     ) {
         // Security Score Hero Card
         item {

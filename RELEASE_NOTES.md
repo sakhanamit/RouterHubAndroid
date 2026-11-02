@@ -21,9 +21,18 @@
 * **Comprehensive Metrics:** Displays Peak Download/Upload, Sustained Average, Total Transferred MB, Ping Latency rating (Ultra Low, Good, Fair), and Jitter stability.
 
 ### 📱 3. Fluid App Navigation & UI Polish
+* **Streamlined Top Bar (Fixed Squished Header):** Collapsed secondary actions (Privacy masking toggle, Check Updates, Welcome Guide) into a clean 3-dot overflow dropdown menu, ensuring the "Router Hub" title and gateway subtitle never get truncated or squished.
+* **Gateway Status Card Alignment (Fixed "ONLI / NE" Line-Break):** Enforced single-line rendering and flexible text allocation on the Connected Gateway card, eliminating badge line-breaks and IP address clipping.
+* **Accurate Gateway Identification (Fixed "Smartphone / PC" Mislabel):** Prioritized gateway classification so primary routers with locally administered/randomized MAC addresses are accurately labelled as "Primary Gateway Router" instead of "Smartphone / PC (Private MAC)".
+* **Eliminated FAB Layout Overlap:** Removed redundant Floating Action Buttons from the Speed Test and Security tabs (where full-width on-screen action buttons exist), and added 120dp bottom clearance on scrollable lists so the "Web Admin" button on device cards is never obscured.
+* **Subnet Card & Button Scaling:** Compacted subnet header metadata (`Subnet: .../24 • GW • IP`) and action chip to prevent text clipping on smaller displays.
+* **Horizontal Scroll for WebView Credential Bar:** Added smooth horizontal scrolling to the router login helper bar so "Copy User", "Copy Pass", and "Fill Credentials" buttons never clip against the screen edge.
 * **Smooth Screen Transitions:** Integrated Jetpack Compose `Crossfade` across all tabs (Routers, Devices, Speed Test, Security) for silky-smooth switching.
-* **Streamlined Top Bar:** Added a sleek 3-dot overflow menu for "Check App Updates" and "Welcome Guide", reducing header button clutter.
-* **Cleaned Screen Hierarchy:** Removed the overlapping Floating Action Button on the Speed Test screen to keep gauge and start button unobstructed.
+
+### 🛡️ 4. Security Audit DNS Resolver Accuracy
+* **Fixed False-Positive "Unrecognized External DNS Resolver":** Integrated Android Private DNS (DNS-over-TLS) detection via `LinkProperties.privateDnsServerName`.
+* **Standard ISP & Gateway DNS Handling:** Standard ISP recursive resolvers and local gateway forwarders are now properly recognized as passed (`isPassed = true`) with helpful security guidance instead of triggering false high-severity red alarms.
+* **Expanded Verified Secure Resolvers:** Added full IPv4/IPv6 support for Cloudflare (1.1.1.1, 1.0.0.1, 2606:4700::), Google (8.8.8.8, 8.8.4.4, 2001:4860::), Quad9 (9.9.9.9, 149.112.112.112), Cisco OpenDNS, AdGuard, CleanBrowsing, and ControlD.
 
 ---
 
