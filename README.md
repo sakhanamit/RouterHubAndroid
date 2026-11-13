@@ -5,23 +5,24 @@
 ### *The Ultimate Modern Network Administrator & Security Companion for Android*
 
 [![Live Webpage](https://img.shields.io/badge/🌐_Website-Live_Landing_Page-6366f1?style=for-the-badge)](https://sakhanamit.github.io/RouterHubAndroid/)
-[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.2.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-release.apk)
+[![Download APK](https://img.shields.io/badge/📥_Download-APK_v1.3.0-10b981?style=for-the-badge&logo=android&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.3-release.apk)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/sakhanamit/RouterHubAndroid)
-[![Latest Release](https://img.shields.io/badge/Release-v1.2.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
+[![Latest Release](https://img.shields.io/badge/Release-v1.3.0-blue?style=for-the-badge&logo=github)](https://github.com/sakhanamit/RouterHubAndroid/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://www.android.com/)
 [![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
 <br/>
 
-### 🚀 **Quick Download Links (v1.2.0)**
+### 🚀 **Quick Download Links (v1.3.0)**
 
 | Package | Direct Download Link | Description | Size |
 | :--- | :--- | :--- | :---: |
-| 🟢 **Release APK** | [**📥 Download RouterHub-v1.2-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-release.apk) | Production Release Build | ~11.4 MB |
-| 🔵 **Debug APK** | [**📥 Download RouterHub-v1.2-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.2-debug.apk) | Standalone Debug Build | ~16.4 MB |
+| 🟢 **Latest Release APK** | [**📥 Download RouterHub-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-release.apk) | Production Release Build | ~11.4 MB |
+| 🟢 **Versioned Release APK** | [**📥 Download RouterHub-v1.3-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.3-release.apk) | Production v1.3.0 Build | ~11.4 MB |
+| 🔵 **Debug APK** | [**📥 Download RouterHub-debug.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/master/app/build/outputs/apk/debug/app-debug.apk) | Standalone Debug Build | ~16.4 MB |
 | 🌐 **Live Webpage** | [**Visit Webpage**](https://sakhanamit.github.io/RouterHubAndroid/) | Interactive Demo & Documentation | -- |
-| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.2.0 Changelog | -- |
+| 📜 **Release Notes** | [**View Release Notes**](RELEASE_NOTES.md) | Version 1.3.0 Changelog | -- |
 
 </div>
 
@@ -35,7 +36,19 @@ Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Mate
 
 ---
 
-## 🆕 What's New in v1.2.0
+## 🆕 What's New in v1.3.0
+
+* ⚡ **High-Speed Subnet Scanning:** Fail-fast reachability and parallel port probes on active hosts reduce subnet sweep time by ~80% (from ~25s down to 3–5s).
+* 🛡️ **Concurrent Security Audit:** Port security probes now run in parallel via Kotlin coroutines, slashing audit check times by ~75%.
+* 🔒 **WebView Auto-Login Hardening:** Dedicated JavaScript string sanitization (`escapeJsString`) prevents syntax breaks and script injection with special characters and quotes.
+* 🧹 **Connection Lifecycle Fix:** Enforced strict `try / finally` HTTP connection cleanup across network scanner stream reads.
+* 🧪 **Comprehensive Test Coverage:** 19/19 passing unit tests covering IP conversions, device classification across categories, security audits, and speed test ratings.
+
+---
+
+## 📦 Previous Releases
+
+### What's New in v1.2.0
 
 * ⚡ **Accurate Multi-Stream Speed Test:** Resolved premature ~5s termination. Implemented full-duration TCP saturation (10s multi-stream download, 8s upload, 1.5–2s latency/jitter test) using Cloudflare Anycast edge servers with FCC/Ookla warm-up filtering.
 * 📈 **Live Throughput Wave (Sparkline):** Real-time stream chart showing live speed fluctuations with gradient fill.

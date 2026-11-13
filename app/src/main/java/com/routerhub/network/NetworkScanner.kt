@@ -79,7 +79,7 @@ object NetworkScanner {
         }
     }
 
-    private fun formatIntToIp(ipInt: Int): String {
+    fun formatIntToIp(ipInt: Int): String {
         return "${ipInt and 0xFF}.${ipInt shr 8 and 0xFF}.${ipInt shr 16 and 0xFF}.${ipInt shr 24 and 0xFF}"
     }
 
@@ -424,48 +424,68 @@ object NetworkScanner {
         val isGateway = (ip == gatewayIp)
         val isThisDevice = (ip == ownIp)
 
-        val openPorts = mutableListOf<Int>()
         var minLatency: Long? = null
+        var isAlive = isGateway || isThisDevice || cachedMacs.containsKey(ip)
 
-        // 1. Probe TCP ports with fast timeout
-        for (port in PORTS_TO_CHECK) {
-            val start = System.currentTimeMillis()
-            try {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(ip, port), 220)
-                    val elapsed = System.currentTimeMillis() - start
-                    openPorts.add(port)
-                    if (minLatency == null || elapsed < minLatency!!) {
-                        minLatency = elapsed
-                    }
-                }
-            } catch (_: Exception) {
-                // Port closed
-            }
-        }
-
-        // 2. If no ports open, check ICMP reachability
-        var isAlive = openPorts.isNotEmpty() || isGateway || isThisDevice
+        // 1. Initial quick reachability probe if not already known
         if (!isAlive) {
             try {
                 val start = System.currentTimeMillis()
-                val reachable = InetAddress.getByName(ip).isReachable(250)
+                val reachable = InetAddress.getByName(ip).isReachable(180)
                 if (reachable) {
                     isAlive = true
                     minLatency = System.currentTimeMillis() - start
                 }
-            } catch (_: Exception) {
-                // Not reachable
+            } catch (_: Exception) {}
+        }
+
+        // If not ICMP responsive, probe common web ports 80/443 with fast timeout
+        if (!isAlive) {
+            for (probePort in intArrayOf(80, 443)) {
+                try {
+                    val start = System.currentTimeMillis()
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(ip, probePort), 160)
+                        isAlive = true
+                        minLatency = System.currentTimeMillis() - start
+                    }
+                    if (isAlive) break
+                } catch (_: Exception) {}
             }
         }
 
-        // 3. Check ARP table if the host was recorded during probe
+        // Check ARP table
         val mac = cachedMacs[ip] ?: readArpForIp(ip)
         if (mac != null && mac != "00:00:00:00:00:00") {
             isAlive = true
         }
 
         if (!isAlive) return@withContext null
+
+        // 2. For active hosts, probe ports concurrently with low overhead
+        val openPorts = mutableListOf<Int>()
+        val portJobs = PORTS_TO_CHECK.map { port ->
+            async {
+                val start = System.currentTimeMillis()
+                try {
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(ip, port), 200)
+                        val elapsed = System.currentTimeMillis() - start
+                        Pair(port, elapsed)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+
+        val probed = portJobs.awaitAll().filterNotNull()
+        for ((port, latency) in probed) {
+            openPorts.add(port)
+            if (minLatency == null || latency < minLatency!!) {
+                minLatency = latency
+            }
+        }
 
         // 4. Resolve Canonical Hostname
         val hostname = try {
@@ -545,6 +565,7 @@ object NetworkScanner {
     private fun fetchTitleAndBanner(ip: String, port: Int): String? {
         val scheme = if (port == 443 || port == 8443) "https" else "http"
         val portSuffix = if (port == 80 || port == 443) "" else ":$port"
+        var conn: HttpURLConnection? = null
         return try {
             val url = URI("$scheme://$ip$portSuffix/").toURL()
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -577,8 +598,6 @@ object NetworkScanner {
                 }
             } catch (_: Exception) {}
 
-            conn.disconnect()
-
             when {
                 !bodyTitle.isNullOrBlank() -> bodyTitle
                 !server.isNullOrBlank() -> server.trim()
@@ -587,6 +606,8 @@ object NetworkScanner {
             }
         } catch (_: Exception) {
             null
+        } finally {
+            try { conn?.disconnect() } catch (_: Exception) {}
         }
     }
 

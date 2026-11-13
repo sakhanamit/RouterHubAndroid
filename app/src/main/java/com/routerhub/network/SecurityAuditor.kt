@@ -8,6 +8,7 @@ import com.routerhub.model.SecurityAuditReport
 import com.routerhub.model.SecurityCheckResult
 import com.routerhub.model.VulnerabilitySeverity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -29,10 +30,17 @@ object SecurityAuditor {
 
         val targetGateway = gatewayIp ?: "192.168.0.1"
 
+        // Probe router common management and risky service ports concurrently
+        val httpDeferred = async { isPortOpen(targetGateway, 80, 400) }
+        val httpsDeferred = async { isPortOpen(targetGateway, 443, 400) }
+        val telnetDeferred = async { isPortOpen(targetGateway, 23, 350) }
+        val ftpDeferred = async { isPortOpen(targetGateway, 21, 350) }
+        val upnpDeferred = async { isPortOpen(targetGateway, 5000, 350) }
+
         // 1. Check Router Cleartext Admin Access (HTTP vs HTTPS)
         onProgress(0.15f, "Auditing Router Web Management protocol...")
-        val httpOpen = isPortOpen(targetGateway, 80, 400)
-        val httpsOpen = isPortOpen(targetGateway, 443, 400)
+        val httpOpen = httpDeferred.await()
+        val httpsOpen = httpsDeferred.await()
         totalChecks++
 
         if (httpOpen && !httpsOpen) {
@@ -78,7 +86,7 @@ object SecurityAuditor {
         // 2. Check Insecure Legacy Telnet (Port 23)
         onProgress(0.30f, "Checking for insecure Telnet (Port 23)...")
         totalChecks++
-        val telnetOpen = isPortOpen(targetGateway, 23, 350)
+        val telnetOpen = telnetDeferred.await()
         if (telnetOpen) {
             checks.add(
                 SecurityCheckResult(
@@ -109,7 +117,7 @@ object SecurityAuditor {
         // 3. Check Insecure Legacy FTP (Port 21)
         onProgress(0.45f, "Probing Legacy FTP (Port 21)...")
         totalChecks++
-        val ftpOpen = isPortOpen(targetGateway, 21, 350)
+        val ftpOpen = ftpDeferred.await()
         if (ftpOpen) {
             checks.add(
                 SecurityCheckResult(
@@ -140,7 +148,7 @@ object SecurityAuditor {
         // 4. Check UPnP Risk (Port 5000 / 1900)
         onProgress(0.60f, "Auditing UPnP Vulnerability Risk...")
         totalChecks++
-        val upnpOpen = isPortOpen(targetGateway, 5000, 350)
+        val upnpOpen = upnpDeferred.await()
         if (upnpOpen) {
             checks.add(
                 SecurityCheckResult(

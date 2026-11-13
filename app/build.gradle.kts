@@ -29,9 +29,9 @@ android {
         // Target Android OS version tested and optimized against (API 34: Android 14)
         targetSdk = 34
         // Internal version number used for update management
-        versionCode = 3
+        versionCode = 4
         // User-facing version string
-        versionName = "1.2"
+        versionName = "1.3"
     }
 
     signingConfigs {
@@ -72,6 +72,10 @@ android {
         // Java language level compatibility for compiling Java/Kotlin bytecode
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     kotlinOptions {

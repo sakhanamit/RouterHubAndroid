@@ -18,6 +18,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import org.json.JSONObject
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -348,6 +349,30 @@ fun RouterWebViewScreen(
     }
 }
 
+fun escapeJsString(str: String): String {
+    val sb = StringBuilder("\"")
+    for (c in str) {
+        when (c) {
+            '\\' -> sb.append("\\\\")
+            '"' -> sb.append("\\\"")
+            '\b' -> sb.append("\\b")
+            '\u000c' -> sb.append("\\f")
+            '\n' -> sb.append("\\n")
+            '\r' -> sb.append("\\r")
+            '\t' -> sb.append("\\t")
+            else -> {
+                if (c.code in 0..31) {
+                    sb.append(String.format(java.util.Locale.ROOT, "\\u%04x", c.code))
+                } else {
+                    sb.append(c)
+                }
+            }
+        }
+    }
+    sb.append("\"")
+    return sb.toString()
+}
+
 /**
  * Intelligent Auto-Fill for routers:
  * Supports standard HTTP forms, LuCI (OpenWrt), and TP-Link Archer/Deco web panels.
@@ -355,10 +380,13 @@ fun RouterWebViewScreen(
 private fun injectAutoLogin(view: WebView, router: RouterDevice) {
     if (router.username.isBlank() && router.password.isBlank()) return
 
+    val userJson = escapeJsString(router.username)
+    val passJson = escapeJsString(router.password)
+
     val js = """
         (function() {
-            var user = '${router.username}';
-            var pass = '${router.password}';
+            var user = $userJson;
+            var pass = $passJson;
             
             // 1. LuCI specific fields
             var luciUser = document.getElementById('luci_username') || document.querySelector('input[name="luci_username"]');

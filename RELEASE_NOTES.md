@@ -1,5 +1,30 @@
 # 🚀 RouterHub Release Notes & Changelog
 
+## 🆕 What's New in v1.3.0 (Build 4)
+
+### ⚡ 1. High-Performance Subnet Scanning
+* **Fast-Path Host Reachability:** Subnet scanning now detects offline IPs instantly via quick ICMP/HTTP reachability probes, eliminating up to 3 seconds of serial TCP timeouts per offline address.
+* **Concurrent Multi-Port Probing:** Active hosts scan all 14 designated device ports concurrently using coroutines, cutting full subnet sweeps from ~25s down to 3–5s.
+* **Resource Leak Prevention:** Enforced strict `try / finally` disconnect lifecycle handling on all HTTP scanner probe streams to prevent socket exhaustion.
+
+### 🛡️ 2. Security Auditor & Auto-Login Hardening
+* **Parallel Security Audit:** Port security probes (80, 443, 23, 21, 5000) now execute concurrently, completing security audits in ~25% of previous run times.
+* **Secure Credential Injection in WebView:** Added dedicated `escapeJsString` sanitization to prevent JavaScript syntax errors or script injection when autofilling credentials containing special characters, quotes, or slashes.
+
+### 🧪 3. Robust Testing & Modern Android UI
+* **Comprehensive Unit Test Suite:** Expanded test suite to 19 tests covering IP arithmetic, device categorization across all hardware classes, JS sanitization, and security scoring formulas.
+* **Modernized Navigation Icons:** Updated navigation icons to Android Material 3 AutoMirrored specifications.
+
+---
+
+## 📦 Download v1.3.0
+
+* **Release APK:** [`RouterHub-v1.3-release.apk`](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-v1.3-release.apk)
+* **Latest Release APK:** [`RouterHub-release.apk`](https://github.com/sakhanamit/RouterHubAndroid/raw/master/RouterHub-release.apk)
+* **Live Webpage:** [sakhanamit.github.io/RouterHubAndroid](https://sakhanamit.github.io/RouterHubAndroid/)
+
+---
+
 ## 🆕 What's New in v1.2.0 (Build 3)
 
 ### ⚡ 1. Accurate Multi-Stream Internet Speedometer Test

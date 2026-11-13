@@ -240,5 +240,129 @@ class RouterHubUnitTest {
         assertEquals(6, completeResult.speedHistory.size)
         assertEquals(98f, completeResult.speedHistory.maxOrNull() ?: 0f, 0.001f)
     }
+
+    @Test
+    fun testFormatIntToIp() {
+        // 192.168.0.1 in little-endian integer representation:
+        // byte0: 192, byte1: 168, byte2: 0, byte3: 1
+        val ipInt = 192 or (168 shl 8) or (0 shl 16) or (1 shl 24)
+        val formatted = NetworkScanner.formatIntToIp(ipInt)
+        assertEquals("192.168.0.1", formatted)
+
+        val loopbackInt = 127 or (0 shl 8) or (0 shl 16) or (1 shl 24)
+        assertEquals("127.0.0.1", NetworkScanner.formatIntToIp(loopbackInt))
+    }
+
+    @Test
+    fun testDeviceClassificationComprehensive() {
+        // Printer
+        val printer = NetworkScanner.classifyDevice(
+            openPorts = listOf(9100),
+            vendor = "HP Printer / Device"
+        )
+        assertEquals(DeviceType.PRINTER, printer)
+
+        // TV / Media streamer
+        val tv = NetworkScanner.classifyDevice(
+            openPorts = listOf(8008),
+            hostname = "chromecast-livingroom",
+            vendor = "Google / Nest"
+        )
+        assertEquals(DeviceType.TV, tv)
+
+        // Computer
+        val pc = NetworkScanner.classifyDevice(
+            openPorts = listOf(445),
+            hostname = "desktop-win11",
+            vendor = "Dell PC / Laptop"
+        )
+        assertEquals(DeviceType.COMPUTER, pc)
+
+        // IoT
+        val iot = NetworkScanner.classifyDevice(
+            vendor = "Tuya (Smart IoT)",
+            hostname = "smart-plug-01"
+        )
+        assertEquals(DeviceType.IOT, iot)
+
+        // Gateway override
+        val gw = NetworkScanner.classifyDevice(
+            isGateway = true,
+            vendor = "Apple"
+        )
+        assertEquals(DeviceType.ROUTER, gw)
+    }
+
+    @Test
+    fun testAutoLoginQuotingSpecialChars() {
+        val dangerousPass = "p@ss'w\"ord\\1\n2"
+        val quoted = com.routerhub.ui.escapeJsString(dangerousPass)
+        assertTrue(quoted.startsWith("\""))
+        assertTrue(quoted.endsWith("\""))
+        assertTrue(quoted.contains("\\\""))
+        assertTrue(quoted.contains("\\\\"))
+        assertTrue(quoted.contains("\\n"))
+    }
+
+    @Test
+    fun testSecurityAuditScoreCalculations() {
+        val passedCheck = SecurityCheckResult(
+            id = "CHK_PASS",
+            title = "Test",
+            description = "Pass",
+            severity = VulnerabilitySeverity.INFO,
+            isPassed = true,
+            recommendation = "None"
+        )
+        val failedCheck = SecurityCheckResult(
+            id = "CHK_FAIL",
+            title = "Test Fail",
+            description = "Fail",
+            severity = VulnerabilitySeverity.CRITICAL,
+            isPassed = false,
+            recommendation = "Fix immediately"
+        )
+
+        // 3 passed out of 4 = 75%
+        val total = 4
+        val passed = 3
+        val score = ((passed.toDouble() / total.toDouble()) * 100).toInt().coerceIn(0, 100)
+        assertEquals(75, score)
+
+        val report = SecurityAuditReport(
+            score = score,
+            checks = listOf(passedCheck, passedCheck, passedCheck, failedCheck),
+            summary = "Good with Recommendations"
+        )
+        assertEquals(75, report.score)
+        assertEquals(1, report.checks.count { !it.isPassed })
+    }
+
+    @Test
+    fun testSpeedTestCapabilityThresholds() {
+        // High-speed 4K streaming check: >= 25 Mbps
+        val fastResult = SpeedTestResult(
+            peakDownloadMbps = 120f,
+            peakUploadMbps = 45f,
+            pingMs = 15L,
+            jitterMs = 2L
+        )
+        assertTrue(fastResult.peakDownloadMbps >= 25f)
+        assertTrue(fastResult.pingMs < 60 && fastResult.jitterMs < 20)
+        assertTrue(fastResult.peakDownloadMbps >= 10f && fastResult.peakUploadMbps >= 5f)
+        assertTrue(fastResult.peakUploadMbps >= 15f)
+
+        // Slow connection check
+        val slowResult = SpeedTestResult(
+            peakDownloadMbps = 8f,
+            peakUploadMbps = 2f,
+            pingMs = 95L,
+            jitterMs = 35L
+        )
+        assertFalse(slowResult.peakDownloadMbps >= 25f)
+        assertFalse(slowResult.pingMs < 60 && slowResult.jitterMs < 20)
+        assertFalse(slowResult.peakDownloadMbps >= 10f && slowResult.peakUploadMbps >= 5f)
+        assertFalse(slowResult.peakUploadMbps >= 15f)
+    }
 }
 

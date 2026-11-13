@@ -802,7 +802,7 @@ fun RouterHubMainScreen() {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Installed Version: v1.2 (Build 3)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    Text("Installed Version: v1.3 (Build 4)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                     Text("Check for the latest release, changelogs, and APK downloads on our official GitHub Pages site.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
                     Surface(
@@ -828,7 +828,7 @@ fun RouterHubMainScreen() {
                         showUpdateDialog = false
                     }
                 ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Visit Webpage")
                 }

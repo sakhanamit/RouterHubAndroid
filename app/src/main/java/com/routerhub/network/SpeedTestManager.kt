@@ -312,7 +312,7 @@ object SpeedTestManager {
                             conn.connectTimeout = 4000
                             conn.readTimeout = 5000
                             conn.requestMethod = "GET"
-                            conn.setRequestProperty("User-Agent", "RouterHubSpeedTest/1.2")
+                            conn.setRequestProperty("User-Agent", "RouterHubSpeedTest/1.3")
                             conn.setRequestProperty("Connection", "Keep-Alive")
                             conn.connect()
 
@@ -424,7 +424,7 @@ object SpeedTestManager {
                 conn.doOutput = true
                 conn.setChunkedStreamingMode(32768)
                 conn.setRequestProperty("Content-Type", "application/octet-stream")
-                conn.setRequestProperty("User-Agent", "RouterHubSpeedTest/1.2")
+                conn.setRequestProperty("User-Agent", "RouterHubSpeedTest/1.3")
                 conn.connect()
 
                 val outputStream: OutputStream = conn.outputStream
