@@ -217,7 +217,7 @@ fun SpeedTestScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(280.dp),
+                        .size(240.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     ModernSpeedometerGauge(
@@ -323,6 +323,50 @@ fun SpeedTestScreen(
                             .padding(horizontal = 12.dp)
                     )
                 }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Start / Stop Speed Test Button (Positioned directly below Gauge - no scrolling needed)
+        // -------------------------------------------------------------
+        Button(
+            onClick = onStartTest,
+            enabled = !isRunning,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
+        ) {
+            if (isRunning) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = when (result.phase) {
+                        SpeedTestPhase.PING -> "Measuring Ping..."
+                        SpeedTestPhase.DOWNLOAD -> "Testing Download..."
+                        SpeedTestPhase.UPLOAD -> "Testing Upload..."
+                        else -> "Testing Connection..."
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (result.phase == SpeedTestPhase.COMPLETE) "START TEST AGAIN" else "START GOOGLE SPEED TEST",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -676,39 +720,19 @@ fun SpeedTestScreen(
 
         Spacer(Modifier.height(4.dp))
 
-        // -------------------------------------------------------------
-        // Start / Restart Speed Test Button
-        // -------------------------------------------------------------
-        Button(
-            onClick = onStartTest,
-            enabled = !isRunning,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
-        ) {
-            if (isRunning) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.5.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "Testing Connection...",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            } else {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
+        if (result.phase == SpeedTestPhase.COMPLETE) {
+            OutlinedButton(
+                onClick = onStartTest,
+                enabled = !isRunning,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (result.phase == SpeedTestPhase.COMPLETE) "START TEST AGAIN" else "START ACCURATE SPEED TEST",
+                    text = "RUN TEST AGAIN",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )

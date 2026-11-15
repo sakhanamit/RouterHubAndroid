@@ -364,5 +364,26 @@ class RouterHubUnitTest {
         assertFalse(slowResult.peakDownloadMbps >= 10f && slowResult.peakUploadMbps >= 5f)
         assertFalse(slowResult.peakUploadMbps >= 15f)
     }
+
+    @Test
+    fun testSpeedTestGoogleEngineDefaults() {
+        val result = SpeedTestResult()
+        assertEquals("Google Global Edge Network", result.serverName)
+        assertEquals("Ready to test", result.statusText)
+        assertEquals(SpeedTestPhase.IDLE, result.phase)
+    }
+
+    @Test
+    fun testNetworkConnectionTypeEnum() {
+        val wifi = NetworkScanner.NetworkConnectionType.WIFI
+        val cellular = NetworkScanner.NetworkConnectionType.CELLULAR
+        val disconnected = NetworkScanner.NetworkConnectionType.DISCONNECTED
+        val other = NetworkScanner.NetworkConnectionType.OTHER
+
+        assertEquals("WIFI", wifi.name)
+        assertEquals("CELLULAR", cellular.name)
+        assertEquals("DISCONNECTED", disconnected.name)
+        assertEquals("OTHER", other.name)
+    }
 }
 

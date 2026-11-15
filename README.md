@@ -38,11 +38,14 @@ Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Mate
 
 ## 🆕 What's New in v1.3.0
 
+* 🌐 **Google Speed Test Engine:** Powered by Google's Global Edge Network (GFE / Google Cloud Storage endpoints) and Google Public DNS latency measurement.
+* 🎯 **Zero-Scroll Speedometer UX:** Fixed the viewport UX where users had to scroll down to start and scroll back up to watch. The `START GOOGLE SPEED TEST` button is now directly below the gauge on screen load.
+* 📶 **Strict Wi-Fi Only Enforcement:** Added startup Wi-Fi connectivity verification. Blocks execution over mobile cellular data with a direct one-tap shortcut to Android Wi-Fi settings.
 * ⚡ **High-Speed Subnet Scanning:** Fail-fast reachability and parallel port probes on active hosts reduce subnet sweep time by ~80% (from ~25s down to 3–5s).
 * 🛡️ **Concurrent Security Audit:** Port security probes now run in parallel via Kotlin coroutines, slashing audit check times by ~75%.
 * 🔒 **WebView Auto-Login Hardening:** Dedicated JavaScript string sanitization (`escapeJsString`) prevents syntax breaks and script injection with special characters and quotes.
 * 🧹 **Connection Lifecycle Fix:** Enforced strict `try / finally` HTTP connection cleanup across network scanner stream reads.
-* 🧪 **Comprehensive Test Coverage:** 19/19 passing unit tests covering IP conversions, device classification across categories, security audits, and speed test ratings.
+* 🧪 **Comprehensive Test Coverage:** 21/21 passing unit tests covering Google speed test defaults, Wi-Fi connection enums, IP arithmetic, and security audits.
 
 ---
 

@@ -44,7 +44,7 @@ data class SpeedTestResult(
     val avgUploadMbps: Float = 0f,
     val downloadBytes: Long = 0L,
     val uploadBytes: Long = 0L,
-    val serverName: String = "Cloudflare Global Anycast CDN",
+    val serverName: String = "Google Global Edge Network",
     val speedHistory: List<Float> = emptyList(),
     val statusText: String = "Ready to test"
 )
@@ -54,12 +54,13 @@ object SpeedTestManager {
     // 32KB static reusable buffer for streaming IO to minimize GC allocations
     private val REUSABLE_BUFFER = ByteArray(32768) { 0x55.toByte() }
 
-    // High-speed Global Anycast CDN endpoints with low-latency edge routing
+    // High-speed Google Global Edge Network CDN endpoints with multi-stream bandwidth saturation
     private val DOWNLOAD_SERVERS = listOf(
-        "https://speed.cloudflare.com/__down?bytes=25000000", // 25MB chunk
-        "https://speed.cloudflare.com/__down?bytes=50000000", // 50MB chunk
+        "https://dl.google.com/dl/android/studio/ide-zips/2024.2.1.12/android-studio-2024.2.1.12-windows.exe",
         "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-        "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+        "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
+        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "https://speed.cloudflare.com/__down?bytes=50000000"
     )
 
     private val UPLOAD_SERVERS = listOf(
@@ -82,9 +83,9 @@ object SpeedTestManager {
         onUpdate(currentResult)
 
         // -------------------------------------------------------------
-        // Step 1: Accurate Latency & Jitter Measurement (1.5 - 2.0s)
+        // Step 1: Accurate Latency & Jitter Measurement (Google DNS & Anycast)
         // -------------------------------------------------------------
-        val pingHosts = listOf("1.1.1.1", "8.8.8.8", "9.9.9.9")
+        val pingHosts = listOf("8.8.8.8", "8.8.4.4", "1.1.1.1")
         val pingTimes = mutableListOf<Long>()
 
         for (host in pingHosts) {

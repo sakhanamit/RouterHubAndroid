@@ -2,6 +2,7 @@ package com.routerhub.network
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import com.routerhub.model.DeviceType
 import com.routerhub.model.NetworkDevice
@@ -45,7 +46,45 @@ object NetworkScanner {
         else -> "Port $port"
     }
 
+    enum class NetworkConnectionType {
+        WIFI,
+        CELLULAR,
+        DISCONNECTED,
+        OTHER
+    }
+
+    /**
+     * Determines the active network transport type.
+     * RouterHub is designed exclusively for local Wi-Fi router management and local network security.
+     */
+    fun getNetworkConnectionType(context: Context): NetworkConnectionType {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return NetworkConnectionType.DISCONNECTED
+            val activeNetwork = cm.activeNetwork ?: return NetworkConnectionType.DISCONNECTED
+            val caps = cm.getNetworkCapabilities(activeNetwork) ?: return NetworkConnectionType.DISCONNECTED
+            when {
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> NetworkConnectionType.WIFI
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> NetworkConnectionType.CELLULAR
+                else -> NetworkConnectionType.OTHER
+            }
+        } catch (_: Exception) {
+            NetworkConnectionType.DISCONNECTED
+        }
+    }
+
+    /**
+     * Verifies whether the device is currently connected to a Wi-Fi network.
+     */
+    fun isWifiConnected(context: Context): Boolean {
+        return getNetworkConnectionType(context) == NetworkConnectionType.WIFI
+    }
+
     fun detectGatewayAndIp(context: Context): Pair<String?, String?> {
+        // Enforce Wi-Fi only: Never resolve mobile carrier IP/gateways as local routers
+        if (!isWifiConnected(context)) {
+            return Pair(null, null)
+        }
         try {
             val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
             val dhcp = wm?.dhcpInfo

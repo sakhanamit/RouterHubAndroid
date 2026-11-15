@@ -2,17 +2,27 @@
 
 ## 🆕 What's New in v1.3.0 (Build 4)
 
-### ⚡ 1. High-Performance Subnet Scanning
-* **Fast-Path Host Reachability:** Subnet scanning now detects offline IPs instantly via quick ICMP/HTTP reachability probes, eliminating up to 3 seconds of serial TCP timeouts per offline address.
+### ⚡ 1. Google Speed Test Engine & Zero-Scroll UX
+* **Google Global Edge Network Integration:** Replaced the speed test engine with Google's worldwide Content Delivery Network (GFE / Google Cloud Storage edge points) and Google Public DNS latency probing.
+* **Immediate No-Scroll Layout:** Fixed the viewport UX flaw where users had to scroll down to start the speed test and scroll up to watch the speedometer. The prominent `START GOOGLE SPEED TEST` button is now positioned directly beneath the speedometer gauge in the initial viewport, completely eliminating scrolling.
+* **Dual Re-Test Triggers:** Kept a secondary `RUN TEST AGAIN` action at the bottom of the capabilities view so tests can be triggered from anywhere.
+
+### 📶 2. Strict Wi-Fi Enforcement (No Cellular / Mobile Data)
+* **Wi-Fi-Only Operation Gate:** The app now strictly verifies active Wi-Fi transport on startup. If connected to mobile data (cellular) or offline, network features are locked behind an informative `WifiRequiredScreen`.
+* **One-Tap System Settings:** Direct shortcut to launch Android Wi-Fi settings (`Settings.ACTION_WIFI_SETTINGS`) and retry network verification.
+* **Cellular Router Pollution Guard:** Prevents carrier IP/gateway mislabeling by ensuring local router discovery only executes over true Wi-Fi networks.
+
+### ⚡ 3. High-Performance Subnet Scanning
+* **Fast-Path Host Reachability:** Subnet scanning detects offline IPs instantly via quick ICMP/HTTP reachability probes, eliminating up to 3 seconds of serial TCP timeouts per offline address.
 * **Concurrent Multi-Port Probing:** Active hosts scan all 14 designated device ports concurrently using coroutines, cutting full subnet sweeps from ~25s down to 3–5s.
 * **Resource Leak Prevention:** Enforced strict `try / finally` disconnect lifecycle handling on all HTTP scanner probe streams to prevent socket exhaustion.
 
-### 🛡️ 2. Security Auditor & Auto-Login Hardening
-* **Parallel Security Audit:** Port security probes (80, 443, 23, 21, 5000) now execute concurrently, completing security audits in ~25% of previous run times.
+### 🛡️ 4. Security Auditor & Auto-Login Hardening
+* **Parallel Security Audit:** Port security probes (80, 443, 23, 21, 5000) execute concurrently, completing security audits in ~25% of previous run times.
 * **Secure Credential Injection in WebView:** Added dedicated `escapeJsString` sanitization to prevent JavaScript syntax errors or script injection when autofilling credentials containing special characters, quotes, or slashes.
 
-### 🧪 3. Robust Testing & Modern Android UI
-* **Comprehensive Unit Test Suite:** Expanded test suite to 19 tests covering IP arithmetic, device categorization across all hardware classes, JS sanitization, and security scoring formulas.
+### 🧪 5. Robust Testing & Modern Android UI
+* **Expanded Unit Test Suite:** 21 unit tests passing with full coverage for Google engine defaults, Wi-Fi connection enums, IP conversions, device categorization, and security formulas.
 * **Modernized Navigation Icons:** Updated navigation icons to Android Material 3 AutoMirrored specifications.
 
 ---

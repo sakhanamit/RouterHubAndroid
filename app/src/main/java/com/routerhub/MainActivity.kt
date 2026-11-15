@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -210,22 +211,36 @@ fun RouterHubMainScreen() {
     var ownIp by remember { mutableStateOf<String?>(null) }
     var currentSubnet by remember { mutableStateOf("192.168.0") }
 
+    // Wi-Fi Connection Restriction: RouterHub operates exclusively on Wi-Fi (never mobile data)
+    var connectionType by remember { mutableStateOf(NetworkScanner.getNetworkConnectionType(context)) }
+    var isWifiConnected by remember { mutableStateOf(NetworkScanner.isWifiConnected(context)) }
+
     fun refreshNetworkInfo() {
-        val (gIp, oIp) = NetworkScanner.detectGatewayAndIp(context)
-        if (gIp != gatewayIp || oIp != ownIp) {
-            gatewayIp = gIp
-            ownIp = oIp
-            val computed = (oIp ?: gIp ?: "192.168.0.1").substringBeforeLast(".", "192.168.0")
-            currentSubnet = computed
+        val type = NetworkScanner.getNetworkConnectionType(context)
+        connectionType = type
+        val wifiActive = (type == NetworkScanner.NetworkConnectionType.WIFI)
+        isWifiConnected = wifiActive
+
+        if (wifiActive) {
+            val (gIp, oIp) = NetworkScanner.detectGatewayAndIp(context)
+            if (gIp != gatewayIp || oIp != ownIp) {
+                gatewayIp = gIp
+                ownIp = oIp
+                val computed = (oIp ?: gIp ?: "192.168.0.1").substringBeforeLast(".", "192.168.0")
+                currentSubnet = computed
+            }
+        } else {
+            gatewayIp = null
+            ownIp = null
         }
     }
 
-    // Auto-refresh network IP and Subnet dynamically
+    // Auto-refresh network IP, Wi-Fi status, and Subnet dynamically
     LaunchedEffect(Unit) {
         refreshNetworkInfo()
         while (true) {
             refreshNetworkInfo()
-            kotlinx.coroutines.delay(3000)
+            kotlinx.coroutines.delay(2000)
         }
     }
 
@@ -292,7 +307,7 @@ fun RouterHubMainScreen() {
 
     // Function to search and discover routers on the network
     fun startRouterSearch() {
-        if (isSearchingRouters) return
+        if (isSearchingRouters || !isWifiConnected) return
         scope.launch {
             isSearchingRouters = true
             refreshNetworkInfo()
@@ -325,7 +340,7 @@ fun RouterHubMainScreen() {
 
     // Function to trigger subnet scan
     fun startNetworkScan() {
-        if (isScanning) return
+        if (isScanning || !isWifiConnected) return
         scope.launch {
             isScanning = true
             scanProgress = 0f
@@ -361,7 +376,7 @@ fun RouterHubMainScreen() {
 
     // Function to run Speed Test
     fun startSpeedTest() {
-        if (isTestingSpeed) return
+        if (isTestingSpeed || !isWifiConnected) return
         scope.launch {
             isTestingSpeed = true
             SpeedTestManager.runSpeedTest { updatedResult ->
@@ -373,7 +388,7 @@ fun RouterHubMainScreen() {
 
     // Function to trigger security audit
     fun startSecurityAudit() {
-        if (isAuditing) return
+        if (isAuditing || !isWifiConnected) return
         scope.launch {
             isAuditing = true
             auditProgress = 0f
@@ -414,6 +429,30 @@ fun RouterHubMainScreen() {
         RouterWebViewScreen(
             router = activeRouter!!,
             onBack = { activeRouter = null }
+        )
+        return
+    }
+
+    // Wi-Fi Connection Gate: RouterHub strictly requires Wi-Fi and does not operate on mobile networks
+    if (!isWifiConnected) {
+        WifiRequiredScreen(
+            connectionType = connectionType,
+            onOpenWifiSettings = {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    })
+                } catch (_: Exception) {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        })
+                    } catch (_: Exception) {}
+                }
+            },
+            onRetry = {
+                refreshNetworkInfo()
+            }
         )
         return
     }
@@ -2651,4 +2690,139 @@ private fun loadRouters(context: Context): List<RouterDevice> {
         // Fallback
     }
     return list
+}
+
+@Composable
+fun WifiRequiredScreen(
+    connectionType: NetworkScanner.NetworkConnectionType,
+    onOpenWifiSettings: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            border = CardDefaults.outlinedCardBorder()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Icon Header
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.WifiOff,
+                        contentDescription = "Wi-Fi Disconnected",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+
+                // Status Badge
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when (connectionType) {
+                        NetworkScanner.NetworkConnectionType.CELLULAR -> Color(0xFFF59E0B).copy(alpha = 0.15f)
+                        else -> MaterialTheme.colorScheme.errorContainer
+                    }
+                ) {
+                    Text(
+                        text = when (connectionType) {
+                            NetworkScanner.NetworkConnectionType.CELLULAR -> "MOBILE DATA DETECTED"
+                            else -> "NO WI-FI CONNECTION"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = when (connectionType) {
+                            NetworkScanner.NetworkConnectionType.CELLULAR -> Color(0xFFD97706)
+                            else -> MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                // Heading & Description
+                Text(
+                    text = "Wi-Fi Connection Required",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = if (connectionType == NetworkScanner.NetworkConnectionType.CELLULAR) {
+                        "RouterHub cannot operate on mobile data. Managing local routers, discovering connected devices, and auditing router security requires a direct local Wi-Fi connection."
+                    } else {
+                        "RouterHub is designed strictly for local Wi-Fi router management and network discovery. Please connect your device to a local Wi-Fi network to continue."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                // Action Buttons
+                Button(
+                    onClick = onOpenWifiSettings,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Open Wi-Fi Settings",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onRetry,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Check Connection Again",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
 }
