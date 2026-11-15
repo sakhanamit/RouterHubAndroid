@@ -586,13 +586,13 @@ fun RouterHubMainScreen() {
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("Check App Updates") },
+                                text = { Text("What's New & Release Notes") },
                                 onClick = {
                                     showTopMenu = false
                                     showUpdateDialog = true
                                 },
                                 leadingIcon = {
-                                    Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.NewReleases, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             )
                             DropdownMenuItem(
@@ -828,32 +828,87 @@ fun RouterHubMainScreen() {
         }
     }
 
-    // App Update Dialog linked to GitHub Pages
+    // App Update & Release Notes Dialog
     if (showUpdateDialog) {
         AlertDialog(
             onDismissRequest = { showUpdateDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.NewReleases, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("RouterHub Updates", fontWeight = FontWeight.Bold)
+                    Text("What's New in v1.3.0", fontWeight = FontWeight.Bold)
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Installed Version: v1.3 (Build 4)", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                    Text("Check for the latest release, changelogs, and APK downloads on our official GitHub Pages site.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Installed: v1.3 (Build 4)",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                "Latest Release",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Text("Release Highlights & Changelog:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+
+                    ReleaseNoteBullet(
+                        icon = "🌐",
+                        title = "Google Speed Test Engine",
+                        desc = "Integrated Google Global Edge Network (GFE / Google Cloud Storage) with Google DNS latency and jitter measurement."
+                    )
+                    ReleaseNoteBullet(
+                        icon = "🎯",
+                        title = "Zero-Scroll Speedometer UX",
+                        desc = "Relocated the 'Start Test' button directly beneath the gauge on screen load. No scrolling up and down required."
+                    )
+                    ReleaseNoteBullet(
+                        icon = "📶",
+                        title = "Strict Wi-Fi Only Mode",
+                        desc = "Added startup Wi-Fi verification. Cellular mobile data is blocked with a direct shortcut to system Wi-Fi settings."
+                    )
+                    ReleaseNoteBullet(
+                        icon = "⚡",
+                        title = "Fast Subnet Discovery",
+                        desc = "Fail-fast reachability and parallel port sweeps cut subnet scan time down from ~25s to 3–5 seconds."
+                    )
+                    ReleaseNoteBullet(
+                        icon = "🔒",
+                        title = "Hardened WebView Auto-Login",
+                        desc = "Sanitized credential injection protects against DOM script breaks and special character injection."
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+                    Text("Official Downloads & Documentation:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             "https://sakhanamit.github.io/RouterHubAndroid/",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(10.dp)
                         )
                     }
@@ -2823,6 +2878,21 @@ fun WifiRequiredScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ReleaseNoteBullet(icon: String, title: String, desc: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(icon, style = MaterialTheme.typography.bodyMedium)
+        Column {
+            Text(title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 16.sp)
         }
     }
 }
