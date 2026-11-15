@@ -66,7 +66,7 @@ Built from the ground up with **Kotlin Coroutines**, **Jetpack Compose**, **Mate
 ## 📥 Direct Download & Installation Guide
 
 ### Option 1: Direct APK Download
-1. Click [**Download RouterHub-v1.2-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/blob/master/RouterHub-v1.3-release.apk) to get the latest APK.
+1. Click [**Download RouterHub-v1.3-release.apk**](https://github.com/sakhanamit/RouterHubAndroid/raw/refs/heads/master/RouterHub-v1.3-release.apk) to get the latest APK.
 2. Transfer or open the file on your Android device (Android 8.0+ / API 26+).
 3. Enable **"Install from Unknown Sources"** if prompted by Android.
 4. Tap install and launch **RouterHub**!
